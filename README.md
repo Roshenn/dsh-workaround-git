@@ -130,6 +130,10 @@ Each card follows VS Code's source-control layout:
   reveal repo.
 - **Branch menu** in the card header lists local branches and switches with
   `git switch`.
+- **Remote update check**: opening the panel (and pressing 刷新) runs `git
+  fetch` on every managed repository; a repo behind its upstream shows an amber
+  `↓N 可更新` badge, the header shows how many repos have updates, and a failed
+  fetch only surfaces a small warning.
 - **Diff drawer** (unified patch with line numbers) and **file history** open
   from a row click or the context menu.
 
@@ -150,6 +154,7 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/unstage` | unstage everything, or the listed `paths` |
 | POST | `/api/discard` | restore tracked files / delete untracked ones |
 | POST | `/api/ignore` | append a rule to the repo's `.gitignore` |
+| POST | `/api/fetch` | fetch every managed repo (or one) and report per-repo failures |
 | POST | `/api/open` | open a file, or reveal it in the file manager |
 | POST | `/api/diff` | unified diff for one file |
 | POST | `/api/history` | commits that touched a file |

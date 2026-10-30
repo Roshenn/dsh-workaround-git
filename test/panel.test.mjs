@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import {
   addIgnoreRule,
   discardPaths,
+  fetchRepo,
   listBranches,
   parsePorcelainV2Detailed,
   repoChangeList,
@@ -175,4 +176,20 @@ test('repoRemote returns the origin URL and falls back to the first remote', asy
 
   sh(repo, 'remote', 'add', 'origin', 'https://example.com/demo.git');
   assert.deepEqual(await repoRemote(repo), { name: 'origin', url: 'https://example.com/demo.git' });
+});
+
+test('fetchRepo updates remote-tracking refs and reports unreachable remotes', async (t) => {
+  const repo = await makeRepo(t);
+  const bare = await mkdtemp(join(tmpdir(), 'wg-bare-'));
+  t.after(() => rm(bare, { recursive: true, force: true }));
+  sh(bare, 'init', '--bare', '-q');
+  sh(repo, 'remote', 'add', 'origin', bare);
+  sh(repo, 'push', '-q', '-u', 'origin', 'HEAD');
+
+  const fetched = await fetchRepo(repo);
+  assert.equal(fetched.ok, true, fetched.error);
+
+  sh(repo, 'remote', 'set-url', 'origin', 'https://127.0.0.1:1/unreachable.git');
+  const failed = await fetchRepo(repo, { timeout: 5000 });
+  assert.equal(failed.ok, false);
 });

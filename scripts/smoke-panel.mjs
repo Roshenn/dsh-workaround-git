@@ -27,6 +27,7 @@ function sh(cwd, ...args) {
 const home = await mkdtemp(join(tmpdir(), 'wg-home-'));
 const workspace = await mkdtemp(join(tmpdir(), 'wg-ws-'));
 const rootRepo = await mkdtemp(join(tmpdir(), 'wg-root-'));
+const bare = join(home, 'origin.git');
 const repo = join(workspace, 'demo');
 
 async function setup() {
@@ -40,14 +41,18 @@ async function setup() {
     },
   }), 'utf8');
 
+  // A real local remote so /fetch can be exercised end to end.
+  sh(home, 'init', '--bare', '-q', 'origin.git');
+
   await mkdir(repo, { recursive: true });
   sh(repo, 'init', '-q');
   sh(repo, 'config', 'user.email', 'smoke@example.com');
   sh(repo, 'config', 'user.name', 'Smoke');
-  sh(repo, 'remote', 'add', 'origin', 'https://example.com/demo.git');
   await writeFile(join(repo, 'readme.txt'), 'one\n', 'utf8');
   sh(repo, 'add', 'readme.txt');
   sh(repo, 'commit', '-q', '-m', 'chore: initial commit');
+  sh(repo, 'remote', 'add', 'origin', bare);
+  sh(repo, 'push', '-q', '-u', 'origin', 'HEAD');
   await writeFile(join(repo, 'readme.txt'), 'one\ntwo\n', 'utf8');
 
   sh(rootRepo, 'init', '-q');
@@ -119,7 +124,7 @@ try {
   check('state reports the repo', repoRow?.repo === 'demo');
   check('state reports the modified file under changes', repoRow?.groups?.changes?.some((file) => file.path === 'readme.txt'), JSON.stringify(repoRow?.groups));
   check('state reports the branch', repoRow?.branch === 'main' || repoRow?.branch === 'master', repoRow?.branch);
-  check('state reports the origin remote', repoRow?.remote?.name === 'origin' && repoRow?.remote?.url === 'https://example.com/demo.git', JSON.stringify(repoRow?.remote));
+  check('state reports the origin remote', repoRow?.remote?.name === 'origin' && repoRow?.remote?.url === bare, JSON.stringify(repoRow?.remote));
 
   const stagedAll = await api('POST', '/stage', repoBody);
   check('stage all', stagedAll.action === 'staged-all', JSON.stringify(stagedAll));
@@ -183,6 +188,22 @@ try {
   const switched = await api('POST', '/branch-switch', { ...repoBody, branch: 'feature' });
   check('branch switch works', switched.ok === true, JSON.stringify(switched));
   await api('POST', '/branch-switch', { ...repoBody, branch: repoRow.branch });
+
+  // ── remote update check ───────────────────────────────────────────────────
+  const clone = await mkdtemp(join(tmpdir(), 'wg-clone-'));
+  sh(home, 'clone', '-q', bare, clone);
+  sh(clone, 'config', 'user.email', 'smoke@example.com');
+  sh(clone, 'config', 'user.name', 'Smoke');
+  await writeFile(join(clone, 'remote-advance.txt'), 'remote\n', 'utf8');
+  sh(clone, 'add', '.');
+  sh(clone, 'commit', '-q', '-m', 'feat: remote advance');
+  sh(clone, 'push', '-q');
+  const fetched = await api('POST', '/fetch', {});
+  check('fetch runs for every managed repo', fetched.fetched >= 1 && fetched.failed === 0, JSON.stringify(fetched));
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('state reports the remote advance after fetch', (repoRow?.behind ?? 0) >= 1, JSON.stringify({ behind: repoRow?.behind, ahead: repoRow?.ahead }));
+  await rm(clone, { recursive: true, force: true });
 
   let refused = null;
   try {
