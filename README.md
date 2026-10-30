@@ -137,10 +137,11 @@ Each card follows VS Code's source-control layout:
   repository; the result line reports success / skipped / failed counts, and
   batch-generated drafts land in each card's commit box.
 - **Open terminal**: the `>_` button right of the branch chip launches an
-  interactive shell in the repository directory — Windows Terminal when it is
-  installed, otherwise PowerShell (`open -a Terminal` on macOS,
-  `x-terminal-emulator` on Linux). The path is passed as the working directory
-  or a single argv element, never interpolated into a shell string.
+  interactive shell in the repository directory — `wt.exe -d <repo>` when
+  Windows Terminal is available, otherwise a hidden PowerShell launcher that
+  `Start-Process`es `powershell -NoExit` in that directory (`open -a Terminal`
+  on macOS, `x-terminal-emulator` on Linux). The path is passed as the working
+  directory or a single argv element, never interpolated into a shell string.
 - **Remote update check**: opening the panel (and pressing 刷新) runs `git
   fetch` on every managed repository; the header shows how many repos have
   updates, and a failed fetch only surfaces a small warning.

@@ -26,7 +26,7 @@ import {
   repoRemote,
   stagePaths,
   switchBranch,
-  terminalArgv,
+  terminalCandidates,
   unstagePaths,
 } from '../lib/git.mjs';
 
@@ -210,22 +210,24 @@ test('openerArgv picks a visible Windows opener for files and folders', () => {
   assert.deepEqual(openerArgv('linux', '/tmp/a', 'file'), { command: 'xdg-open', args: ['/tmp/a'] });
 });
 
-test('terminalArgv opens a shell at the repository directory', async () => {
+test('terminalCandidates open a shell at the repository directory', async () => {
+  const windows = terminalCandidates('win32', 'C:\\tmp\\repo');
+  assert.equal(windows.length, 2);
+  assert.deepEqual(windows[0], { command: 'wt.exe', args: ['-d', 'C:\\tmp\\repo'], cwd: 'C:\\tmp\\repo' });
+  assert.equal(windows[1].command, 'powershell.exe');
+  assert.equal(windows[1].cwd, 'C:\\tmp\\repo');
+  assert.equal(windows[1].windowsHide, true);
+  assert.deepEqual(windows[1].env, { WG_REPO: 'C:\\tmp\\repo' });
+  assert.ok(windows[1].args.some((arg) => arg.includes('Start-Process')));
+  assert.ok(windows[1].args.join(' ').includes('$env:WG_REPO'));
+
   assert.deepEqual(
-    terminalArgv('win32', 'C:\\tmp\\repo'),
-    { command: 'powershell.exe', args: ['-NoExit'], cwd: 'C:\\tmp\\repo' },
+    terminalCandidates('darwin', '/tmp/repo'),
+    [{ command: 'open', args: ['-a', 'Terminal', '/tmp/repo'], cwd: '/tmp/repo' }],
   );
   assert.deepEqual(
-    terminalArgv('win32', 'C:\\tmp\\repo', { hasWindowsTerminal: true }),
-    { command: 'wt.exe', args: ['-d', 'C:\\tmp\\repo'], cwd: 'C:\\tmp\\repo' },
-  );
-  assert.deepEqual(
-    terminalArgv('darwin', '/tmp/repo'),
-    { command: 'open', args: ['-a', 'Terminal', '/tmp/repo'], cwd: '/tmp/repo' },
-  );
-  assert.deepEqual(
-    terminalArgv('linux', '/tmp/repo'),
-    { command: 'x-terminal-emulator', args: ['--working-directory', '/tmp/repo'], cwd: '/tmp/repo' },
+    terminalCandidates('linux', '/tmp/repo'),
+    [{ command: 'x-terminal-emulator', args: ['--working-directory', '/tmp/repo'], cwd: '/tmp/repo' }],
   );
 
   const missing = await openTerminal('C:\\definitely\\missing\\repo-path');
