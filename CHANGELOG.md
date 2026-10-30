@@ -19,6 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Opening the panel (and 刷新) fetches every managed repository; repos behind their upstream show an amber `↓N 可更新` badge plus a header count, while fetch failures surface as a small warning instead of blocking the panel.
 - Per-card `↓` pull (fetch + ff-only) and `↑` push buttons left of the branch chip.
 - Batch bar in the header: 批量拉取 / 批量推送 / 批量生成提交信息 across every managed repo; the result line reports success / skipped / failed counts, and batch-generated drafts fill each card's commit box.
+- Per-card terminal button (`>_` right of the branch chip) and `POST /api/terminal`: opens Windows Terminal when installed, otherwise PowerShell, at the repository directory (`open -a Terminal` on macOS, `x-terminal-emulator` on Linux). The path is passed as the working directory / a single argv element, never interpolated into a shell string.
 - AI commit-message drafts through dsh's own `llm` service, budgeted to 120 KB of diff and 45 s per call; the draft lands in the input box and is never auto-committed.
 - HTTP API under `/workaround-git/api`; repo paths are confined to managed workspace roots.
 - View toggle (grid / list) remembered in `localStorage` (`wg-view`).

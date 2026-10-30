@@ -17,6 +17,7 @@ import {
   discardPaths,
   fetchRepo,
   listBranches,
+  openTerminal,
   openerArgv,
   parsePorcelainV2Detailed,
   repoChangeList,
@@ -25,6 +26,7 @@ import {
   repoRemote,
   stagePaths,
   switchBranch,
+  terminalArgv,
   unstagePaths,
 } from '../lib/git.mjs';
 
@@ -206,4 +208,26 @@ test('openerArgv picks a visible Windows opener for files and folders', () => {
   );
   assert.deepEqual(openerArgv('darwin', '/tmp/a', 'reveal'), { command: 'open', args: ['-R', '/tmp/a'] });
   assert.deepEqual(openerArgv('linux', '/tmp/a', 'file'), { command: 'xdg-open', args: ['/tmp/a'] });
+});
+
+test('terminalArgv opens a shell at the repository directory', async () => {
+  assert.deepEqual(
+    terminalArgv('win32', 'C:\\tmp\\repo'),
+    { command: 'powershell.exe', args: ['-NoExit'], cwd: 'C:\\tmp\\repo' },
+  );
+  assert.deepEqual(
+    terminalArgv('win32', 'C:\\tmp\\repo', { hasWindowsTerminal: true }),
+    { command: 'wt.exe', args: ['-d', 'C:\\tmp\\repo'], cwd: 'C:\\tmp\\repo' },
+  );
+  assert.deepEqual(
+    terminalArgv('darwin', '/tmp/repo'),
+    { command: 'open', args: ['-a', 'Terminal', '/tmp/repo'], cwd: '/tmp/repo' },
+  );
+  assert.deepEqual(
+    terminalArgv('linux', '/tmp/repo'),
+    { command: 'x-terminal-emulator', args: ['--working-directory', '/tmp/repo'], cwd: '/tmp/repo' },
+  );
+
+  const missing = await openTerminal('C:\\definitely\\missing\\repo-path');
+  assert.equal(missing.ok, false);
 });

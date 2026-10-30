@@ -136,6 +136,11 @@ Each card follows VS Code's source-control layout:
 - **Batch bar**: 批量拉取 / 批量推送 / 批量生成提交信息 act on every managed
   repository; the result line reports success / skipped / failed counts, and
   batch-generated drafts land in each card's commit box.
+- **Open terminal**: the `>_` button right of the branch chip launches an
+  interactive shell in the repository directory — Windows Terminal when it is
+  installed, otherwise PowerShell (`open -a Terminal` on macOS,
+  `x-terminal-emulator` on Linux). The path is passed as the working directory
+  or a single argv element, never interpolated into a shell string.
 - **Remote update check**: opening the panel (and pressing 刷新) runs `git
   fetch` on every managed repository; the header shows how many repos have
   updates, and a failed fetch only surfaces a small warning.
@@ -162,6 +167,7 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/fetch` | fetch every managed repo (or one) and report per-repo failures |
 | POST | `/api/batch` | pull / push / suggest across every managed repo |
 | POST | `/api/open` | open a file, or reveal it in the file manager |
+| POST | `/api/terminal` | open an interactive terminal at the repository directory |
 | POST | `/api/diff` | unified diff for one file |
 | POST | `/api/history` | commits that touched a file |
 | POST | `/api/stash` | stash the listed paths |
