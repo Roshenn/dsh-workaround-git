@@ -17,6 +17,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Unified diff drawer and file-history drawer; local branch menu using `git switch`.
 - Each card shows its `origin` remote URL (fallback: first remote) in a small aligned line under the repository name; a URL that does not fit scrolls horizontally on hover without taking extra height.
 - Opening the panel (and 刷新) fetches every managed repository; repos behind their upstream show an amber `↓N 可更新` badge plus a header count, while fetch failures surface as a small warning instead of blocking the panel.
+- Per-card `↓` pull (fetch + ff-only) and `↑` push buttons left of the branch chip.
+- Batch bar in the header: 批量拉取 / 批量推送 / 批量生成提交信息 across every managed repo; the result line reports success / skipped / failed counts, and batch-generated drafts fill each card's commit box.
 - AI commit-message drafts through dsh's own `llm` service, budgeted to 120 KB of diff and 45 s per call; the draft lands in the input box and is never auto-committed.
 - HTTP API under `/workaround-git/api`; repo paths are confined to managed workspace roots.
 - View toggle (grid / list) remembered in `localStorage` (`wg-view`).

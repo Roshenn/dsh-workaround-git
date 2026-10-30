@@ -141,6 +141,9 @@ try {
   const log = sh(repo, 'log', '-1', '--pretty=%s').trim();
   check('commit landed in the repo', log === 'feat(panel): add workaround git panel', log);
 
+  const pushedOnce = await api('POST', '/push', repoBody);
+  check('push updates the remote', pushedOnce.ok === true, JSON.stringify(pushedOnce));
+
   // ── file-level actions ────────────────────────────────────────────────────
   await writeFile(join(repo, 'new-file.txt'), 'hello\n', 'utf8');
   await writeFile(join(repo, 'readme.txt'), 'one\ntwo\nthree\n', 'utf8');
@@ -204,6 +207,31 @@ try {
   repoRow = state.workspaces[0]?.repos?.[0];
   check('state reports the remote advance after fetch', (repoRow?.behind ?? 0) >= 1, JSON.stringify({ behind: repoRow?.behind, ahead: repoRow?.ahead }));
   await rm(clone, { recursive: true, force: true });
+
+  // ── batch pull / push / suggest ───────────────────────────────────────────
+  sh(repo, 'restore', '--worktree', '--', 'readme.txt');
+  await rm(join(repo, '.gitignore'), { force: true });
+  await rm(join(repo, 'ignored.tmp'), { force: true });
+  const pulled = await api('POST', '/batch', { action: 'pull' });
+  check('batch pull fast-forwards behind repos', pulled.okCount >= 1 && pulled.skippedCount === 0, JSON.stringify(pulled));
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('batch pull cleared behind', (repoRow?.behind ?? 0) === 0, JSON.stringify({ behind: repoRow?.behind, ahead: repoRow?.ahead }));
+
+  await writeFile(join(repo, 'batch-push.txt'), 'batch\n', 'utf8');
+  await api('POST', '/stage', { ...repoBody, paths: ['batch-push.txt'] });
+  await api('POST', '/commit', { ...repoBody, message: 'test: batch push' });
+  const pushed = await api('POST', '/batch', { action: 'push' });
+  check('batch push pushes commits', pushed.okCount >= 1, JSON.stringify(pushed));
+  check('remote received the pushed commit', sh(bare, 'log', '-1', '--pretty=%s').trim() === 'test: batch push', sh(bare, 'log', '-1', '--pretty=%s'));
+
+  await writeFile(join(repo, 'draft.txt'), 'draft\n', 'utf8');
+  const batchDraft = await api('POST', '/batch', { action: 'suggest' });
+  check(
+    'batch suggest returns drafts',
+    batchDraft.results.some((row) => row.ok && typeof row.message === 'string' && row.message.startsWith('feat(panel)')),
+    JSON.stringify(batchDraft.results),
+  );
 
   let refused = null;
   try {
