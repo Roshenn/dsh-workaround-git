@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.3.1] - 2026-10-30
+
+### Fixed
+
+- Test fixtures now pin `pull.rebase=false` through `GIT_CONFIG_*`: with a global `pull.rebase=true`, the `git pull --ff-only` calls tried to rebase and the dirty fixture repo made them fail, so `core.test.mjs` and `plugin.test.mjs` aborted with `cannot pull with rebase`.
+
 ## [0.3.0] - 2026-10-30
 
 ### Added

@@ -23,6 +23,11 @@ const GIT_ENV = {
   GIT_AUTHOR_EMAIL: 'fixture@example.com',
   GIT_COMMITTER_NAME: 'fixture',
   GIT_COMMITTER_EMAIL: 'fixture@example.com',
+  // Keep the fixtures hermetic: a global `pull.rebase=true` turns the
+  // `pull --ff-only` calls into rebases and the dirty repo makes them fail.
+  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_KEY_0: 'pull.rebase',
+  GIT_CONFIG_VALUE_0: 'false',
 };
 
 export function run(args, cwd) {
