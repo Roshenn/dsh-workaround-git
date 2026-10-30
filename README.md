@@ -150,6 +150,12 @@ Each card follows VS Code's source-control layout:
   repository, colour-coded blue / green / violet; the result line reports
   success / skipped / failed counts, and batch-generated drafts land in each
   card's commit box.
+- **Batch stage-and-commit**: ✓ 批量添加并提交 stages every pending change in
+  each managed scope and commits it with that card's current message (edits
+  count, not just generated drafts). It stays grey until every repo with pending
+  changes has a message, so one click never commits a repo with an empty or
+  borrowed message; repos with merge conflicts and repos without a message are
+  reported as skipped.
 - **Cards per screen**: 管理工作区 starts with a 显示设置 row whose
   `默认每屏显示项目数` selector picks 1–8 cards (default 4); the choice is
   remembered in `localStorage` (`wg-columns`) and applied immediately, while a
@@ -184,7 +190,7 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/discard` | restore tracked files / delete untracked ones |
 | POST | `/api/ignore` | append a rule to the repo's `.gitignore` |
 | POST | `/api/fetch` | fetch every managed repo (or one) and report per-repo failures |
-| POST | `/api/batch` | pull / push / suggest across every managed repo |
+| POST | `/api/batch` | pull / push / suggest / stage-and-commit across every managed repo |
 | POST | `/api/open` | open a file, or reveal it in the file manager |
 | POST | `/api/terminal` | open an interactive terminal at the repository directory |
 | POST | `/api/diff` | unified diff for one file |

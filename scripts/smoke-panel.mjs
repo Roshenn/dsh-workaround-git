@@ -235,6 +235,25 @@ try {
     JSON.stringify(batchDraft.results),
   );
 
+  const batchCommit = await api('POST', '/batch', {
+    action: 'commit',
+    messages: { [repo]: 'test: batch stage commit' },
+  });
+  check(
+    'batch commit stages and commits',
+    batchCommit.okCount >= 1 && sh(repo, 'log', '-1', '--pretty=%s').trim() === 'test: batch stage commit',
+    JSON.stringify(batchCommit),
+  );
+  const cleanNoop = await api('POST', '/batch', { action: 'commit', messages: {} });
+  check(
+    'batch commit reports nothing for clean repos instead of skipping them',
+    cleanNoop.okCount === 0 && cleanNoop.skippedCount === 0 && cleanNoop.failedCount === 0,
+    JSON.stringify(cleanNoop),
+  );
+  await writeFile(join(repo, 'batch-skip.txt'), 'skip\n', 'utf8');
+  const batchSkip = await api('POST', '/batch', { action: 'commit', messages: {} });
+  check('batch commit skips a dirty repo without a message', batchSkip.skippedCount >= 1 && batchSkip.okCount === 0, JSON.stringify(batchSkip));
+
   let refused = null;
   try {
     await api('POST', '/stage', { ...repoBody, paths: ['../outside.txt'] });
