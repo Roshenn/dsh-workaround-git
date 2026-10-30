@@ -19,7 +19,7 @@ This plugin gives the model five verbs that operate on the whole workspace at on
 
 ## Features
 
-- **Discovery, not configuration.** Every `.git` under the workspace root is a project. No repo list to maintain, no config file to drift.
+- **Discovery, not configuration.** Every `.git` under the workspace root is a project, and a workspace that points at a subdirectory of a repository is a project scoped to that directory. No repo list to maintain, no config file to drift.
 - **One view of everything.** Branch, working-tree dirt, ahead/behind vs upstream, and last commit in a single table.
 - **Sync that refuses to guess.** Fetches, then fast-forwards; a repo with a dirty working tree is skipped and reported instead of half-resolving a conflict.
 - **One commit message per repo.** `git_workspace_changes` hands the model each repo's own diff; `git_workspace_commit` takes a map of repo → message, so a workspace-wide commit never reuses one message.
@@ -93,9 +93,17 @@ node scripts/smoke-panel.mjs    # panel API end to end against a temp repo
 
 The client half registers a left-sidebar entry (`sidebar.panellist`, order 45)
 and a main-area page (`main`). First open lists every workspace dsh knows with
-its git state — `git` (the path is a repo), `contains` (repos live below it), or
-`none` — and asks which ones to manage. The choice is stored in
+its git state — `git` (the path is inside a work tree: a repo root or a module
+directory of one), `contains` (repos live below it), or `none` — and asks which
+ones to manage. The choice is stored in
 `$DSH_HOME/workaround-git/managed.json`; nothing else is persisted.
+
+A workspace that is a subdirectory of a repository is a **scoped workspace**: its
+card shows only that module's branch state, changes and line counts, and commits
+from it refuse to run when something outside the module is already staged (the
+index is shared with the whole repository). Managing both the repository root and
+a module inside it is allowed and yields two cards, one per scope; the same
+repository reached twice by different workspaces still renders once.
 
 The workbench is one horizontal strip of vertical cards — one card per
 repository, never wrapping to a second row. Four cards are visible on a wide
@@ -188,7 +196,10 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/sync`, `/api/push` | per-repo sync / push |
 
 Mutations take `{workspaceId, repo}`; every `path` must resolve inside that
-repository, so the browser cannot turn the panel into "run git anywhere".
+repository, so the browser cannot turn the panel into "run git anywhere". A
+scoped workspace additionally pins every command to its module directory, and a
+commit is refused (`scope-conflict`) when the shared index holds changes staged
+outside that module.
 
 ## Configure
 

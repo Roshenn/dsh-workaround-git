@@ -39,6 +39,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.4.0] - 2026-10-30
+
+### Added
+
+- A workspace that is a subdirectory of a git repository is now a valid scoped workspace: classification asks git for the work-tree root (`rev-parse --show-toplevel`) instead of looking for `.git`, so a module directory of a large repository can be managed on its own. Its card reports only that directory's branch state, changes and line counts, and the same rule applies to `git_workspace_*` when the session workspace is such a subdirectory.
+- Managing a repository root and a module inside it side by side is allowed: card identity is (repository root, scope), so the two scopes coexist while the same pair discovered twice — a nested repository also managed on its own — still collapses to one card.
+
+### Changed
+
+- `discoverRepos` includes the start directory when it sits inside a work tree, and the scoped primitives (`status`, change list, numstat, draft digests, diff) run with a `.` pathspec so they never report files outside the scope.
+
+### Fixed
+
+- Committing from a scoped workspace refuses with `scope-conflict` when the shared index holds changes staged outside the module, instead of sweeping another module's work into the commit; stage-all and stash-all stay inside the scope too.
+
 ## [0.3.2] - 2026-10-30
 
 ### Fixed

@@ -1,24 +1,26 @@
 /**
- * Repository ownership across managed workspaces.
+ * Repository scoping across managed workspaces.
  *
- * A repo can be reachable twice: once as a managed workspace root and once
- * nested inside another managed workspace (the `~/.dsh` layout: the home dir is
- * itself a repo that holds the project repos). Each physical repo must render
- * exactly once, owned by its own root when it has one.
+ * A card is identified by (repository, scope). Two different scopes of the same
+ * repository legitimately coexist — the whole repo and one module inside it —
+ * while the same pair reached twice (a nested repository discovered under a
+ * managed parent as well as managed on its own) must collapse to one card.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { managedWorkspacesState, ownedRepos, repoOwner } from '../lib/state.mjs';
+import { managedWorkspacesState, repoScopeKey } from '../lib/state.mjs';
 
 function sh(cwd, ...args) {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 }
 
 async function makeRepo(root, name) {
+  await mkdir(root, { recursive: true });
   sh(root, 'init', '-q');
   sh(root, 'config', 'user.email', 'test@example.com');
   sh(root, 'config', 'user.name', 'Test');
@@ -28,37 +30,42 @@ async function makeRepo(root, name) {
   return root;
 }
 
-test('repoOwner prefers the repo that is its own workspace root', () => {
-  const root = join(tmpdir(), 'wg-owner');
-  const proj = join(root, 'proj');
-  const sub = join(proj, 'sub');
-  const repo = join(sub, 'repo');
-  const workspaces = [{ path: root }, { path: proj }, { path: sub }];
-
-  assert.equal(repoOwner(proj, workspaces), workspaces[1], 'own root wins over the parent');
-  assert.equal(repoOwner(repo, workspaces), workspaces[2], 'closest ancestor wins');
-  assert.equal(repoOwner(join(tmpdir(), 'elsewhere', 'repo'), workspaces), undefined);
+test('repoScopeKey distinguishes scopes and ignores path aliases', () => {
+  const root = join(tmpdir(), 'wg-key');
+  const modulePath = join(root, 'module');
+  assert.equal(repoScopeKey(root, root), repoScopeKey(root, root));
+  assert.notEqual(repoScopeKey(root, root), repoScopeKey(root, modulePath));
+  assert.notEqual(repoScopeKey(root, modulePath), repoScopeKey(modulePath, modulePath));
 });
 
-test('ownedRepos drops rows another managed workspace owns', () => {
-  const root = join(tmpdir(), 'wg-owner');
-  const proj = join(root, 'proj');
-  const workspaces = [{ path: root }, { path: proj }];
-  const repos = [{ path: root }, { path: proj }];
+test('managedWorkspacesState keeps parent and module scopes of one repo side by side', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'wg-scope-state-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await makeRepo(root, 'root.txt');
+  const modulePath = join(root, 'module');
+  await mkdir(modulePath, { recursive: true });
 
-  assert.deepEqual(ownedRepos(workspaces[0], repos, workspaces), [{ path: root }]);
-  assert.deepEqual(ownedRepos(workspaces[1], repos, workspaces), [{ path: proj }]);
+  const workspaces = [
+    { id: 'root', title: 'root', path: root },
+    { id: 'module', title: 'module', path: modulePath },
+  ];
+  const states = await managedWorkspacesState(workspaces);
+  const rows = states.flatMap((state) => state.repos);
+
+  assert.equal(rows.length, 2, 'whole repo and module are two different cards');
+  assert.deepEqual(new Set(rows.map((row) => row.path)), new Set([root, modulePath]));
+  assert.deepEqual(new Set(rows.map((row) => row.repoRoot)), new Set([realpathSync(root)]));
 });
 
-test('managedWorkspacesState reports one row per physical repository', async (t) => {
-  const root = await mkdtemp(join(tmpdir(), 'wg-state-'));
+test('managedWorkspacesState reports one row per card when a nested repo is also managed', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'wg-nested-state-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await makeRepo(root, 'root.txt');
   const nested = join(root, 'nested');
-  await mkdir(nested, { recursive: true });
   await makeRepo(nested, 'nested.txt');
 
-  // Parent workspace is itself a repo; the nested repo is also managed on its own.
+  // The parent workspace discovers the nested repo below it, and the nested
+  // repo is also managed on its own: that pair must render once.
   const workspaces = [
     { id: 'parent', title: 'parent', path: root },
     { id: 'nested', title: 'nested', path: nested },
