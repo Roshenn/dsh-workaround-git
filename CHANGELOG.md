@@ -15,9 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `git_workspace_changes` — per-repo diff digest (files, line counts, recent commit subjects) for writing commit messages.
 - `git_workspace_commit` — batch commit where every repo carries its own message from a `messages` map; repos without an entry are skipped.
 - `git_workspace_push` — batch push, setting upstream on first push.
-- Automatic repo discovery under the session workspace, bounded by `maxDepth` and skipping `node_modules`, build output, and dot-directories.
-- `dryRun` on `sync`, `commit`, and `push`.
+- Automatic repo discovery under the session workspace, bounded by `maxDepth` and a 200-repo cap, skipping `node_modules`, build output, and dot-directories.
+- `dryRun` on `sync`, `commit`, and `push`; the sync preview still fetches so it cannot report a stale divergence.
+- `root` confined to the calling session's workspace, with `allowOutsideRoot` as the explicit opt-out.
 - Zero runtime dependencies, zero build step.
+- `scripts/validate-schema.mjs` — optional check that every definition compiles under the real `@deepseek-ai/dsh-tools`.
 
 [Unreleased]: https://github.com/<owner>/dsh-workaround-git/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/<owner>/dsh-workaround-git/releases/tag/v0.1.0

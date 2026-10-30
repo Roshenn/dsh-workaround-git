@@ -73,6 +73,7 @@ dsh --profile web --dump-config | grep workaround-git
 | `maxDepth` | `3` | 在根目录下向下查找 `.git` 的最大深度 |
 | `concurrency` | `4` | 并行处理的仓库数 |
 | `pullMode` | `ff-only` | `git_workspace_sync` 的默认整合方式：`ff-only`、`rebase` 或 `merge` |
+| `allowOutsideRoot` | `false` | 允许 `root` 超出会话工作区（见「安全边界」） |
 
 patch 加载器会整体替换 `config`，不做深合并 —— 需要几个字段就写全几个字段。
 
@@ -100,35 +101,41 @@ patch 加载器会整体替换 `config`，不做深合并 —— 需要几个字
 }
 ```
 
-`messages` 里没有的仓库会被跳过 —— 绝不会套用别人的提交信息。
+`messages` 里没有的仓库会被跳过 —— 绝不会套用别人的提交信息。key 必须是 `git_workspace_changes` 显示的精确 label（或绝对路径）；一旦 label 存在嵌套（`apps/api-server` 与 `libs/api-server` 都叫 `api-server`），裸目录名不够用，匹配不上的 key 会让整次调用报失败，而不是被悄悄丢掉。
 
 **批量推送：**
 > 把刚提交的仓库都推了。
 
 ## 输出示例
 
-五仓库工作区上执行 `git_workspace_sync` 的 dry run：
+五仓库工作区上执行 `git_workspace_sync` 的 dry run —— 会先 fetch 以保证预览准确，然后停在整合之前：
 
 ```
-**sync** · 5 repos · would-sync: 1, up-to-date: 3, skipped: 1
+**sync** · 5 repos · up-to-date: 3, would-sync: 1, skipped: 1
 
 | repo | action | status | after | detail |
 | --- | --- | --- | --- | --- |
-| api-server | up-to-date | ok | ↑0 ↓0 | already up to date |
-| web-client | would-sync | ok | ↑0 ↓2 | — |
-| docs | up-to-date | ok | ↑1 ↓0 | already up to date |
-| tooling | skipped | skipped | ↑0 ↓0 | working tree is dirty (0 staged, 1 modified, 1 untracked) |
-| shared-lib | up-to-date | ok | ↑0 ↓0 | already up to date |
+| app | up-to-date | ok | ↑0 ↓0 | already up to date |
+| app-ahead | up-to-date | ok | ↑1 ↓0 | already up to date |
+| app-behind | would-sync | ok | ↑0 ↓1 | — |
+| app-dirty | skipped | skipped | ↑0 ↓0 | working tree is dirty (0 staged, 1 modified, 1 untracked) |
+| app-nested/deep | up-to-date | ok | ↑0 ↓0 | already up to date |
 ```
 
 ## 它不会做什么
 
-- **不 force push、不 `reset --hard`、不重写已发布历史。** 同步只做 fetch 与整合；`push` 就是普通 `git push`。
-- **没有提交信息就不提交。** `messages` 必填；映射里缺失的仓库直接跳过。
-- **不同步脏仓库。** 有已暂存、已修改、未跟踪或冲突文件的仓库会被跳过并给出原因 —— 十个仓库同时解错冲突，比留下一个给你手工处理更糟。
-- **不碰 bare 仓库、不递归 submodule。** 发现逻辑只认 `.git` 目录或 worktree 的 `.git` 文件；磁盘上的 bare 远端会被忽略，`node_modules`、`dist`、`build`、`target`、`.venv` 和点目录都会被跳过。
+- **不 force push、不 `reset --hard`、不自行重写历史。** 同步先 fetch，默认用 `--ff-only` 整合；只有你明确指定 `mode: 'rebase'` 或 `'merge'` 才会用对应方式。`push` 就是普通 `git push`。
+- **没有提交信息就不提交。** `messages` 必填，每个值都必须是非空字符串；匹配不到任何仓库 label 的 key 会报错，而不是被静默忽略。
+- **不同步脏仓库。** 有已暂存、已修改、未跟踪或冲突文件的仓库会被跳过并给出原因 —— 十个仓库同时解错冲突，比留下一个给你手工处理更糟。跳过是「已报告的决策」，不计入失败。
+- **不碰 bare 仓库。** 发现逻辑只认 `.git` 目录或 worktree 的 `.git` 文件；磁盘上的 bare 远端会被忽略，`node_modules`、`dist`、`build`、`target`、`.venv` 和点目录都会被跳过。submodule 自带 `.git` 文件，因此会作为独立仓库出现。
 - **不做部分暂存。** `git_workspace_commit` 对每个被提交的仓库执行 `git add --all`。
 - **不处理凭据。** 用你 `git` 里已有的认证配置；`GIT_TERMINAL_PROMPT` 被关闭，缺凭据会快速失败而不是挂住。
+
+### 安全边界
+
+`root` 来自模型生成的参数，而所有操作都在该目录里执行 `git`。因此它被限制在调用会话的工作区内：超出工作区的 `root` 会在任何 `git` 进程启动前被拒绝。确实需要扫描更宽的范围时，在插件配置里设 `allowOutsideRoot: true`。
+
+只读工具（`status`、`changes`）从不写盘。`sync`、`commit`、`push` 都支持 `dryRun`；其中 sync 的预览仍会 fetch，因为看不见上游提交的预览会给出错误结论 —— 但它绝不整合、不 reset、不写工作区。
 
 ## 实现方式
 
@@ -138,15 +145,18 @@ lib/git.mjs     git 原语：发现、状态、同步、变更、提交、推送
 lib/format.mjs  每批结果的 markdown 渲染
 ```
 
-发现逻辑从根目录向下按 `maxDepth` 遍历，带 `.git` 的目录即一个项目，并继续向其内部遍历（覆盖 worktree 与嵌套项目）。状态解析自 `git status --porcelain=v2 --branch`，ahead/behind 取仓库自身对 upstream 的认知。
+发现逻辑从根目录按 `maxDepth` 深度优先遍历，带 `.git` 的目录即一个项目，并继续向其内部遍历（覆盖 worktree 与嵌套项目）；200 个仓库的硬上限防止错误的根目录变成无边界扫描。状态解析自 `git status --porcelain=v2 --branch`，ahead/behind 取仓库自身对 upstream 的认知。
 
 每个单仓库操作都以结果对象 resolve、从不 reject：插件报告部分失败，而不是丢掉整批结果。
 
 ## 开发
 
 ```bash
-node --test                                # 17 个用例，在临时目录里跑真实 git 仓库
-node scripts/smoke.mjs                     # 对演示工作区打印三个只读工具的输出
+node --test                                # 22 个用例，在临时目录里跑真实 git 仓库
+node scripts/smoke.mjs                     # 打印状态表、sync dry run 与变更摘要
+
+# 可选：用真实工具注册表（而非测试桩）验证 schema 能编译通过
+npm i --no-save @deepseek-ai/dsh-tools && node scripts/validate-schema.mjs
 ```
 
 没有安装步骤：运行时零依赖。`@deepseek-ai/dsh-tools` 与 `@deepseek-ai/cordis` 是由宿主提供的 peer 依赖，插件测试通过 loader hook 打桩前者。

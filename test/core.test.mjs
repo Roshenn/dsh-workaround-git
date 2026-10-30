@@ -110,13 +110,28 @@ test('commitAll dryRun stages and commits nothing', async () => {
   fs.rmSync(`${ws.paths.app}/dry.txt`, { force: true });
 });
 
-test('syncAll dryRun reports without fetching or integrating', async () => {
+test('syncAll dryRun fetches for an accurate preview but never integrates', async () => {
+  const headBefore = run(['rev-parse', 'HEAD'], ws.paths.behind);
   const { rows } = await syncAll(ws.root, { dryRun: true });
   const behind = rows.find((r) => r.repo === 'app-behind');
   assert.equal(behind.action, 'would-sync');
   assert.ok(behind.behind >= 1);
   const stillBehind = await repoStatus(ws.paths.behind, { root: ws.root });
   assert.ok(stillBehind.behind >= 1, 'dry run must leave the repo behind');
+  assert.equal(run(['rev-parse', 'HEAD'], ws.paths.behind), headBefore, 'dry run must not move HEAD');
+});
+
+test('commitAll refuses a bare directory name that is not an exact label', async () => {
+  const { rows, unknownKeys } = await commitAll(ws.root, { deep: 'test: bare name only' });
+  assert.equal(rows.length, 0, 'no repo may be matched by bare directory name');
+  assert.ok(unknownKeys.includes('deep'));
+});
+
+test('commitAll refuses a non-string message instead of committing an object', async () => {
+  const { rows } = await commitAll(ws.root, { 'app-dirty': { text: 'nope' } });
+  const row = rows.find((r) => r.repo === 'app-dirty');
+  assert.equal(row.ok, false);
+  assert.match(row.error, /must be a string/);
 });
 
 test('syncAll refuses a dirty repo and fast-forwards a clean one', async () => {

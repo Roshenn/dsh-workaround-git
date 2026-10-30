@@ -73,6 +73,7 @@ Defaults live in `cordis.patch.yml` and can be edited there:
 | `maxDepth` | `3` | How deep to descend under the root looking for `.git` |
 | `concurrency` | `4` | Repos processed in parallel |
 | `pullMode` | `ff-only` | Default integration for `git_workspace_sync`: `ff-only`, `rebase`, or `merge` |
+| `allowOutsideRoot` | `false` | Allow a `root` outside the session workspace (see [Safety boundaries](#safety-boundaries)) |
 
 The patch loader replaces `config` wholesale, never deep-merges — restate every field you need.
 
@@ -100,35 +101,41 @@ The model calls `git_workspace_changes`, reads each repo's files and line counts
 }
 ```
 
-A repo with no entry in `messages` is skipped — never committed with someone else's message.
+A repo with no entry in `messages` is skipped — never committed with someone else's message. Keys must be the exact label shown by `git_workspace_changes` (or an absolute path); a bare directory name is not enough once labels nest (`apps/api-server` and `libs/api-server` both end in `api-server`), and an unmatched key fails the call instead of being dropped.
 
 **Push the batch:**
 > Push every repo you just committed.
 
 ## Example output
 
-`git_workspace_sync` on a five-repo workspace, dry run:
+`git_workspace_sync` on a five-repo workspace, dry run — it fetches so the preview is accurate, then stops before integrating:
 
 ```
-**sync** · 5 repos · would-sync: 1, up-to-date: 3, skipped: 1
+**sync** · 5 repos · up-to-date: 3, would-sync: 1, skipped: 1
 
 | repo | action | status | after | detail |
 | --- | --- | --- | --- | --- |
-| api-server | up-to-date | ok | ↑0 ↓0 | already up to date |
-| web-client | would-sync | ok | ↑0 ↓2 | — |
-| docs | up-to-date | ok | ↑1 ↓0 | already up to date |
-| tooling | skipped | skipped | ↑0 ↓0 | working tree is dirty (0 staged, 1 modified, 1 untracked) |
-| shared-lib | up-to-date | ok | ↑0 ↓0 | already up to date |
+| app | up-to-date | ok | ↑0 ↓0 | already up to date |
+| app-ahead | up-to-date | ok | ↑1 ↓0 | already up to date |
+| app-behind | would-sync | ok | ↑0 ↓1 | — |
+| app-dirty | skipped | skipped | ↑0 ↓0 | working tree is dirty (0 staged, 1 modified, 1 untracked) |
+| app-nested/deep | up-to-date | ok | ↑0 ↓0 | already up to date |
 ```
 
 ## What it will not do
 
-- **No force push, no `reset --hard`, no rebase of published history.** Sync only fetches and integrates; `push` is a plain `git push`.
-- **No commit without a message.** `messages` is required; repos missing from the map are skipped.
-- **No syncing a dirty repo.** A repo with staged, modified, untracked, or conflicted files is skipped with the reason, because a conflict resolved wrongly in ten repos at once is worse than one repo left for you.
-- **No bare repos, no submodule recursion.** Discovery looks for a `.git` directory or worktree file; bare remotes on disk are ignored, and `node_modules`, `dist`, `build`, `target`, `.venv`, and dot-directories are skipped.
+- **No force push, no `reset --hard`, no history rewrite on its own.** Sync fetches, then integrates with `--ff-only` unless you ask for `mode: 'rebase'` or `'merge'`; `push` is a plain `git push`.
+- **No commit without a message.** `messages` is required, every value must be a non-empty string, and a key that matches no repo label is reported as an error rather than silently ignored.
+- **No syncing a dirty repo.** A repo with staged, modified, untracked, or conflicted files is skipped with the reason, because a conflict resolved wrongly in ten repos at once is worse than one repo left for you. A skip is reported, not counted as a failure.
+- **No bare repos.** Discovery looks for a `.git` directory or worktree file; bare remotes on disk are ignored, and `node_modules`, `dist`, `build`, `target`, `.venv`, and dot-directories are skipped. Submodules do carry a `.git` file, so they show up as their own repos.
 - **No partial staging.** `git_workspace_commit` stages everything (`git add --all`) in each committed repo.
 - **No credentials handling.** Authentication is whatever your `git` already has configured; `GIT_TERMINAL_PROMPT` is disabled so a missing credential fails fast instead of hanging.
+
+### Safety boundaries
+
+`root` is model-generated, and every operation runs `git` in that directory. It is therefore confined to the calling session's workspace: a `root` outside it is refused before any `git` process starts. A deliberate wider scan requires `allowOutsideRoot: true` in the plugin config.
+
+Reads (`status`, `changes`) never write. `sync`, `commit`, and `push` accept `dryRun`; the sync preview still fetches, because a preview that cannot see upstream commits would report the wrong thing — it never integrates, resets, or writes to a working tree.
 
 ## How it works
 
@@ -138,15 +145,18 @@ lib/git.mjs     git primitives: discovery, status, sync, changes, commit, push
 lib/format.mjs  markdown rendering of each batch result
 ```
 
-Discovery walks the root breadth-first to `maxDepth`, treating every directory with a `.git` entry as a project, and keeps walking inside it (worktrees, nested projects). Status is parsed from `git status --porcelain=v2 --branch`, so ahead/behind come from the repo's own view of its upstream.
+Discovery walks the root depth-first to `maxDepth`, treating every directory with a `.git` entry as a project, and keeps walking inside it (worktrees, nested projects); a hard cap of 200 repos stops a wrong root from turning into an unbounded scan. Status is parsed from `git status --porcelain=v2 --branch`, so ahead/behind come from the repo's own view of its upstream.
 
 Every per-repo operation resolves with a result object and never rejects: the plugin reports partial failure instead of throwing away the whole batch.
 
 ## Development
 
 ```bash
-node --test                                # 17 tests against real git repos in a temp workspace
-node scripts/smoke.mjs                     # print the three read tools' output for a demo workspace
+node --test                                # 22 tests against real git repos in a temp workspace
+node scripts/smoke.mjs                     # print the status table, a sync dry run, and the change digest
+
+# optional: prove the schemas compile under the real tool registry, not the test stub
+npm i --no-save @deepseek-ai/dsh-tools && node scripts/validate-schema.mjs
 ```
 
 No install step: there are no runtime dependencies. `@deepseek-ai/dsh-tools` and `@deepseek-ai/cordis` are peer dependencies supplied by the harness; the plugin test stubs the former through a loader hook.

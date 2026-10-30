@@ -79,10 +79,33 @@ test('git_workspace_status resolves the session workspace and renders text', asy
   assert.equal(blocks[0].text, value.text);
 });
 
-test('git_workspace_status accepts an explicit root', async () => {
-  const tools = mount(process.cwd());
-  const value = await tools.get('git_workspace_status').execute({ root: ws.root }, exec());
-  assert.ok(value.repos.length >= 5);
+test('git_workspace_status accepts a root inside the session workspace', async () => {
+  const tools = mount(ws.root);
+  const value = await tools.get('git_workspace_status').execute({ root: ws.paths.app }, exec());
+  assert.deepEqual(value.repos, ['app'], 'scanning one repo root must report exactly that repo');
+});
+
+test('an explicit root outside the session workspace is refused', async () => {
+  const tools = mount(ws.root);
+  await assert.rejects(
+    () => tools.get('git_workspace_status').execute({ root: 'C:\\Windows' }, exec()),
+    /inside the session workspace/,
+  );
+});
+
+test('a skipped dirty repo does not fail the batch', async () => {
+  const tools = mount(ws.root);
+  const value = await tools.get('git_workspace_sync').execute({ dryRun: true }, exec());
+  assert.equal(value.ok, true, 'skip is a reported decision, not a failure');
+  assert.match(value.text, /skipped/);
+});
+
+test('git_workspace_commit reports unknown keys as a failed call', async () => {
+  const tools = mount(ws.root);
+  const value = await tools.get('git_workspace_commit').execute({ messages: { typo: 'test: x' }, dryRun: true }, exec());
+  assert.equal(value.ok, false);
+  assert.match(value.text, /Unknown repo keys/);
+  assert.match(value.text, /typo/);
 });
 
 test('git_workspace_commit commits per-repo messages and reports unknown keys', async () => {
@@ -95,7 +118,8 @@ test('git_workspace_commit commits per-repo messages and reports unknown keys', 
 
   assert.match(value.text, /would-commit/);
   assert.match(value.text, /Unknown repo keys/);
-  assert.equal(value.ok, true);
+  assert.equal(value.ok, false, 'a key that matched nothing means part of the request did not happen');
+  assert.deepEqual(value.repos, ['app-dirty']);
 });
 
 test('git_workspace_sync dry run does not touch repos', async () => {
