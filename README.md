@@ -142,6 +142,10 @@ Each card follows VS Code's source-control layout:
   repository, colour-coded blue / green / violet; the result line reports
   success / skipped / failed counts, and batch-generated drafts land in each
   card's commit box.
+- **Cards per screen**: 管理工作区 starts with a 显示设置 row whose
+  `默认每屏显示项目数` selector picks 1–8 cards (default 4); the choice is
+  remembered in `localStorage` (`wg-columns`) and applied immediately, while a
+  narrow pane still shows fewer cards rather than shrinking below 260 px.
 - **Open terminal**: the `>_` button right of the branch chip launches an
   interactive shell in the repository directory — `wt.exe -d <repo>` when
   Windows Terminal is available, otherwise a hidden PowerShell launcher that
