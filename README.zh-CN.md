@@ -48,7 +48,7 @@ DeepSeek Harness（dsh）插件：对整个工作区的所有仓库做批量 git
 dsh plugin --profile web add /path/to/dsh-workaround-git
 
 # 仓库推到 GitHub 之后
-dsh plugin --profile web add github:<owner>/dsh-workaround-git#v0.1.0
+dsh plugin --profile web add github:Roshenn/dsh-workaround-git#v0.1.0
 
 # 发布到 npm 之后
 npx -y @deepseek-ai/dsh plugin --profile web add dsh-workaround-git@0.1.0

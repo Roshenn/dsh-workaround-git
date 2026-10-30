@@ -48,7 +48,7 @@ Requires Node `^22.19.0 || >=24.0.0`, dsh `>= 0.2.1-rc.3`, and `git` on `PATH`.
 dsh plugin --profile web add /path/to/dsh-workaround-git
 
 # from GitHub, after the repo is pushed
-dsh plugin --profile web add github:<owner>/dsh-workaround-git#v0.1.0
+dsh plugin --profile web add github:Roshenn/dsh-workaround-git#v0.1.0
 
 # from npm, once published
 npx -y @deepseek-ai/dsh plugin --profile web add dsh-workaround-git@0.1.0

@@ -21,5 +21,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Zero runtime dependencies, zero build step.
 - `scripts/validate-schema.mjs` — optional check that every definition compiles under the real `@deepseek-ai/dsh-tools`.
 
-[Unreleased]: https://github.com/<owner>/dsh-workaround-git/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/<owner>/dsh-workaround-git/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Roshenn/dsh-workaround-git/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Roshenn/dsh-workaround-git/releases/tag/v0.1.0

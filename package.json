@@ -7,6 +7,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Roshenn/dsh-workaround-git.git"
+  },
+  "homepage": "https://github.com/Roshenn/dsh-workaround-git#readme",
+  "bugs": {
+    "url": "https://github.com/Roshenn/dsh-workaround-git/issues"
+  },
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
