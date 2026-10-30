@@ -30,9 +30,10 @@
 **提交前必做**：
 
 1. `npm test` 必须绿（= `node --test "test/*.test.mjs"`，22 项，约 25 秒；只改文档可跳过，但 commit 里要写明跳过原因）。
-2. `git status --short` 看一眼改动清单。
-3. **只 `git add` 自己动过的文件**，不要 `git add -A` / `git add .`——
-   本机可能有并发会话在同一仓库里改东西（例如面板改动尚未提交），
+2. 按第 4 节升版本号、收 CHANGELOG——**每个 commit 都升，没有例外**。
+3. `git status --short` 看一眼改动清单。
+4. **只 `git add` 自己动过的文件**，不要 `git add -A` / `git add .`——
+   本机可能有并发会话在同一仓库里改东西，
    全量 add 会把别人的半成品裹进你的提交。
 
 **明确不做**：
@@ -73,13 +74,38 @@
 
 ---
 
-## 4. 行为变化要进 CHANGELOG
+## 4. 版本号自动递增（每个 commit）
 
-- 用户可见的行为变化 → 在 `CHANGELOG.md` 的 `[Unreleased]` 下补一条（`Added` / `Changed` / `Fixed` / `Removed`），一句话说清变化本身。
-- 版本号只在用户要求发版时动：`package.json` 的 `version`、把 `[Unreleased]` 收成带日期的版本段、补对比链接。
-- 文档事实以 `README.md`（英文主文档）为准。`README.zh-CN.md` 目前停在 0.1 内容、
-  还没跟上面板和卡片视图：改功能描述时别照着它改，也别只补一句就当成同步已做完；
-  要补中文版就整篇补。
+**规则**：每次提交都升版本，纯文档 / 测试 / 脚本改动也不例外。
+版本号是 commit 的序号，不是发版开关。
+
+**位次**（SemVer；当前 0.x，以 0.1.0 为例）：
+
+| 改动 | 升哪一位 | 0.1.0 → |
+|---|---|---|
+| `feat` | minor | 0.2.0 |
+| `fix` / `perf` / `refactor` | patch | 0.1.1 |
+| `docs` / `test` / `build` / `chore` | patch | 0.1.1 |
+| 破坏性变更（标题带 `!`，或正文写 `BREAKING CHANGE`） | 0.x 阶段升 minor，CHANGELOG 里标 `BREAKING` | 0.2.0 |
+
+升到 1.0.0 之后恢复标准 semver：破坏性变更升 major，`feat` 仍升 minor。
+
+**同一次 commit 里三处一起改**（缺一就是没做完）：
+
+1. `package.json` 的 `version`。
+2. `CHANGELOG.md`：在 `## [Unreleased]` 之下新开 `## [x.y.z] - YYYY-MM-DD`，
+   段里写本次改动（`Added` / `Changed` / `Fixed` / `Removed`）；
+   `[Unreleased]` 里已有的积压条目别动，也不要往里新写。
+3. 对一眼：`node -p "require('./package.json').version"` 与 CHANGELOG 顶部第一个版本段一致。
+
+**文末链接不自动补**：没有对应 tag 的版本不加 `releases/tag` 行（本仓库目前一个 tag 都没有）；
+等用户打 tag 再补，并同步 `[Unreleased]` 的 compare 起点。别凭空造链接。
+
+**发版仍要人点头**：`git tag`、`git push --tags`、`npm publish` 都是对外动作，用户明确要求才做。
+
+**文档基准**：事实以 `README.md`（英文主文档）为准。`README.zh-CN.md` 目前停在 0.1 内容、
+还没跟上面板和卡片视图：改功能描述时别照着它改，也别只补一句就当成同步已做完；
+要补中文版就整篇补。
 
 ---
 
@@ -104,11 +130,13 @@ git commit -m "fix(api): 面板路由改由 ctx.inject(['webServer']) 挂载
 
 - apply() 阶段 get('webServer') 拿不到服务（Loader 并发挂载 entry）
 - 路由落到 SPA fallback，面板报 HTTP 404: response is not JSON
+- 版本：0.1.0 → 0.1.1（patch）
 - 验证：npm test 22 项绿；node scripts/smoke-panel.mjs 通过"
 
 git add lib/client.js README.md CHANGELOG.md package.json
 git commit -m "feat(panel): 卡片条改单行横排，超出时横向滚动
 
 - 卡片不再换行到第二行；宽面板固定显示四张，其余用滚轮 / ‹ › 滚动
+- 版本：0.1.1 → 0.2.0（minor）
 - 验证：重启桌面 App 手点面板；node scripts/smoke-panel.mjs 通过"
 ```

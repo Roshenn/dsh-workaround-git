@@ -1,6 +1,6 @@
 {
   "name": "dsh-workaround-git",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness (dsh) plugin: batch git operations across every repo in a workspace — status, sync, per-repo commits, and push, for parallel development across several projects.",
   "type": "module",
   "license": "MIT",
