@@ -1,0 +1,13 @@
+# dsh-workaround-git bundle patch: insert the host half as one cordis row.
+# The package's dsh.bundle.patch points here; the row below loads lib/index.js
+# as a plain cordis plugin and registers the git_workspace_* tools.
+#
+# Config passed here is the plugin's whole config object: the loader replaces it
+# wholesale, never deep-merges, so restate every field you need.
+- insert:
+    - id: workaround-git
+      name: 'dsh-workaround-git'
+      config:
+        maxDepth: 3
+        concurrency: 4
+        pullMode: ff-only

@@ -1,0 +1,59 @@
+{
+  "name": "dsh-workaround-git",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness (dsh) plugin: batch git operations across every repo in a workspace — status, sync, per-repo commits, and push, for parallel development across several projects.",
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./git": "./lib/git.mjs",
+    "./format": "./lib/format.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.1-rc.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "smoke": "node scripts/smoke.mjs",
+    "check": "npm run test && npm run smoke"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "git",
+    "batch",
+    "multi-repo",
+    "workspace",
+    "parallel-development",
+    "sync"
+  ]
+}
