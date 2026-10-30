@@ -64,6 +64,71 @@ dsh --profile web --dump-config | grep workaround-git
 
 **Desktop app:** the `desktop` profile is managed by the Electron shell and the CLI refuses it. Open **Plugins → Add plugin** in the app instead.
 
+### Develop against the running desktop app
+
+The desktop app has no working `dsh` CLI shim, so the dev link is the same one
+`dsh-looptree-dashboard` uses: a `link:` dependency in the live profile plus a
+bundle entry. From the profile directory:
+
+```bash
+cd ~/.dsh/profiles/desktop
+# package.json:
+#   dependencies: "dsh-workaround-git": "link:../../dsh-workaround-git"
+#   dsh.profile.bundles: append "dsh-workaround-git"
+pnpm install --prefer-offline
+```
+
+Then fully quit the app (tray → Quit) and relaunch. The junction
+`node_modules/dsh-workaround-git` points at this checkout, so every later edit
+is picked up by the next restart — no rebuild step, the client half is plain JS.
+
+Sanity checks before restarting:
+
+```bash
+node --test                     # host half
+node scripts/smoke-panel.mjs    # panel API end to end against a temp repo
+```
+
+## Panel (browser half)
+
+The client half registers a left-sidebar entry (`sidebar.panellist`, order 45)
+and a main-area page (`main`). First open lists every workspace dsh knows with
+its git state — `git` (the path is a repo), `contains` (repos live below it), or
+`none` — and asks which ones to manage. The choice is stored in
+`$DSH_HOME/workaround-git/managed.json`; nothing else is persisted.
+
+The workbench is one horizontal strip of vertical cards — one card per
+repository, never wrapping to a second row. Four cards are visible on a wide
+pane (three, two or one as it narrows); when more repositories are managed the
+strip scrolls sideways with the wheel, a trackpad, or the ‹ › buttons that
+appear at the edges. Cards fill the pane when fewer than four exist. Every card
+keeps the same block order and fixed block heights — header rows, a 132px
+scrolling file area, a 64px message box, a two-row action bar, a status line —
+so the file list, message box and buttons of a row share one horizontal line.
+The single-column list view stays available from the header toggle and is
+remembered in `localStorage` (`wg-view`).
+
+Each card shows branch, ahead/behind, file-level changes, and four actions —
+**stage & draft** (runs `git add --all`, then asks the model for a Conventional
+Commits message), **commit** (manual, uses the message in the box), **sync**,
+**push**. The model route comes from the session default (`agentDefaultModel`)
+or the first advertised provider; no API key ever reaches the plugin.
+
+The browser half talks to one prefix route, `/workaround-git/api`:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/workspaces` | every workspace with its git state (`?refresh=1` bypasses the 60s cache) |
+| GET/POST | `/api/managed` | read / replace the managed list |
+| GET | `/api/state` | per-repo status and change list for every managed workspace |
+| POST | `/api/stage` | `git add --all` in one repo |
+| POST | `/api/suggest` | model-drafted commit message (no commit) |
+| POST | `/api/commit` | commit the message in the box |
+| POST | `/api/sync`, `/api/push` | per-repo sync / push |
+
+Mutations take `{workspaceId, repo}`; `repo` must resolve inside a managed
+workspace, so the browser cannot turn the panel into "run git anywhere".
+
 ## Configure
 
 Defaults live in `cordis.patch.yml` and can be edited there:

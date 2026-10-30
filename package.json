@@ -18,6 +18,7 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./client": "./lib/client.js",
     "./git": "./lib/git.mjs",
     "./format": "./lib/format.mjs",
     "./package.json": "./package.json"
@@ -47,6 +48,12 @@
     "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-modules"
+      ]
     }
   },
   "scripts": {
