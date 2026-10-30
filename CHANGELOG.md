@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.3.2] - 2026-10-30
+
+### Fixed
+
+- One physical repository rendered twice in the panel: a managed workspace can itself be a git repository and contain other managed repositories (`~/.dsh` holds `dsh-looptree-dashboard`, `dsh-remote-ctx` and `dsh-workaround-git`). `/api/state` reported the nested repos once per workspace, so seven cards stood for four repositories and the header counters doubled. A repo that is its own managed root now owns itself and is otherwise owned by the closest ancestor workspace; `managedWorkspacesState` and `managedRepoRefs` (batch pull / push / AI drafts) share that rule, so batch actions no longer run twice on one repo.
+
 ## [0.3.1] - 2026-10-30
 
 ### Fixed
