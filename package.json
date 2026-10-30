@@ -42,9 +42,7 @@
     }
   },
   "scripts": {
-    "test": "node --test \"test/*.test.mjs\"",
-    "smoke": "node scripts/smoke.mjs",
-    "check": "npm run test && npm run smoke"
+    "test": "node --test \"test/*.test.mjs\""
   },
   "keywords": [
     "dsh",
