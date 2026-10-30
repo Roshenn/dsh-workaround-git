@@ -44,6 +44,7 @@ async function setup() {
   sh(repo, 'init', '-q');
   sh(repo, 'config', 'user.email', 'smoke@example.com');
   sh(repo, 'config', 'user.name', 'Smoke');
+  sh(repo, 'remote', 'add', 'origin', 'https://example.com/demo.git');
   await writeFile(join(repo, 'readme.txt'), 'one\n', 'utf8');
   sh(repo, 'add', 'readme.txt');
   sh(repo, 'commit', '-q', '-m', 'chore: initial commit');
@@ -118,6 +119,7 @@ try {
   check('state reports the repo', repoRow?.repo === 'demo');
   check('state reports the modified file under changes', repoRow?.groups?.changes?.some((file) => file.path === 'readme.txt'), JSON.stringify(repoRow?.groups));
   check('state reports the branch', repoRow?.branch === 'main' || repoRow?.branch === 'master', repoRow?.branch);
+  check('state reports the origin remote', repoRow?.remote?.name === 'origin' && repoRow?.remote?.url === 'https://example.com/demo.git', JSON.stringify(repoRow?.remote));
 
   const stagedAll = await api('POST', '/stage', repoBody);
   check('stage all', stagedAll.action === 'staged-all', JSON.stringify(stagedAll));

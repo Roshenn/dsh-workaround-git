@@ -20,6 +20,7 @@ import {
   repoChangeList,
   repoDiff,
   repoHistory,
+  repoRemote,
   stagePaths,
   switchBranch,
   unstagePaths,
@@ -163,4 +164,15 @@ test('listBranches and switchBranch work and reject unknown branches', async (t)
 
   const missing = await switchBranch(repo, 'nope');
   assert.equal(missing.ok, false);
+});
+
+test('repoRemote returns the origin URL and falls back to the first remote', async (t) => {
+  const repo = await makeRepo(t);
+  assert.deepEqual(await repoRemote(repo), { name: null, url: null });
+
+  sh(repo, 'remote', 'add', 'upstream', 'https://example.com/upstream.git');
+  assert.deepEqual(await repoRemote(repo), { name: 'upstream', url: 'https://example.com/upstream.git' });
+
+  sh(repo, 'remote', 'add', 'origin', 'https://example.com/demo.git');
+  assert.deepEqual(await repoRemote(repo), { name: 'origin', url: 'https://example.com/demo.git' });
 });

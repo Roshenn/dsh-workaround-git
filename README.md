@@ -101,15 +101,19 @@ The workbench is one horizontal strip of vertical cards — one card per
 repository, never wrapping to a second row. Four cards are visible on a wide
 pane (three, two or one as it narrows); when more repositories are managed the
 strip scrolls sideways with the wheel, a trackpad, or the ‹ › buttons that
-appear at the edges. Cards fill the pane when fewer than four exist. Every card
-keeps the same block order and fixed block heights — repository header, commit
-box, a 200px change area, status line — so the commit box, the staged section,
-the changes section and the buttons of a row share one horizontal line. The
-single-column list view stays available from the header toggle and is
-remembered in `localStorage` (`wg-view`).
+appear at the edges. Cards fill the pane when fewer than four exist, and the
+card body stretches to the pane height. Every card keeps the same block order —
+repository header (name, branch, origin URL), commit box, a flexible change
+area (min 140px) that fills the leftover height, status line — so the commit
+box, the staged section, the changes section and the buttons of a row share one
+horizontal line. The single-column list view stays available from the header
+toggle and is remembered in `localStorage` (`wg-view`).
 
 Each card follows VS Code's source-control layout:
 
+- **Remote line** under the repository name: the `origin` URL (falling back to
+  the first remote) in small monospace, aligned across cards; a URL that does
+  not fit scrolls horizontally on hover and takes no extra height.
 - **Commit box** with a model button (✦) that drafts a Conventional Commits
   message from the staged diff; the draft lands in the input and is never
   committed automatically. The split button commits, or commits and pushes.
