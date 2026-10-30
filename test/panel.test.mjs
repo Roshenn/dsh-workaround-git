@@ -17,6 +17,7 @@ import {
   discardPaths,
   fetchRepo,
   listBranches,
+  openerArgv,
   parsePorcelainV2Detailed,
   repoChangeList,
   repoDiff,
@@ -192,4 +193,17 @@ test('fetchRepo updates remote-tracking refs and reports unreachable remotes', a
   sh(repo, 'remote', 'set-url', 'origin', 'https://127.0.0.1:1/unreachable.git');
   const failed = await fetchRepo(repo, { timeout: 5000 });
   assert.equal(failed.ok, false);
+});
+
+test('openerArgv picks a visible Windows opener for files and folders', () => {
+  assert.deepEqual(
+    openerArgv('win32', 'C:\\tmp\\a.txt', 'reveal'),
+    { command: 'explorer.exe', args: ['/select,C:\\tmp\\a.txt'] },
+  );
+  assert.deepEqual(
+    openerArgv('win32', 'C:\\tmp\\a.txt', 'file'),
+    { command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', 'C:\\tmp\\a.txt'] },
+  );
+  assert.deepEqual(openerArgv('darwin', '/tmp/a', 'reveal'), { command: 'open', args: ['-R', '/tmp/a'] });
+  assert.deepEqual(openerArgv('linux', '/tmp/a', 'file'), { command: 'xdg-open', args: ['/tmp/a'] });
 });
