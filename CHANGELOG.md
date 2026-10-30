@@ -12,6 +12,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - First-run workspace picker: every dsh workspace classified as `git` / `contains` / `none`; the selection is stored in `$DSH_HOME/workaround-git/managed.json`.
 - Workbench: one horizontal strip of vertical repo cards — four visible on a wide pane, extra cards scroll sideways (wheel, trackpad, ‹ › edge buttons); fixed-height card anatomy keeps the file list, message box and action buttons on one horizontal line per row.
 - Per-repo panel actions: stage & AI-draft, commit, sync, push.
+- VS Code-style card: commit box on top with a model button (✦) and a split commit / commit-and-push button, collapsible staged / changes / conflicts sections with per-file status, name, directory and line counts.
+- File-level actions: per-row hover stage / unstage / discard (confirmation required), stage-all / unstage-all, stash, context menu with open file, reveal in file manager, copy path, copy relative path, add to `.gitignore` (file / extension / directory), view diff and file history.
+- Unified diff drawer and file-history drawer; local branch menu using `git switch`.
 - AI commit-message drafts through dsh's own `llm` service, budgeted to 120 KB of diff and 45 s per call; the draft lands in the input box and is never auto-committed.
 - HTTP API under `/workaround-git/api`; repo paths are confined to managed workspace roots.
 - View toggle (grid / list) remembered in `localStorage` (`wg-view`).
@@ -20,6 +23,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Workspace grouping was removed from the workbench body; each card header carries the workspace name instead (hidden when it equals the repo label).
+- The card structure now follows VS Code's source-control layout (commit box on top, staged / changes sections below); `/api/state` returns grouped changes and `/api/stage` / `/api/unstage` accept a `paths` list.
 
 ### Fixed
 

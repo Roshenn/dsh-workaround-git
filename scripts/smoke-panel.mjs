@@ -4,20 +4,24 @@
  * Builds a throwaway workspace with one git repo, points DSH_HOME at a temp
  * directory whose storage registry lists it, mounts the API handler on a real
  * http server, and walks the same sequence the browser half sends:
- * workspaces → managed → state → stage → suggest → commit.
+ * workspaces → managed → state → stage → suggest → commit, then the file-level
+ * actions (stage/unstage paths, diff, history, discard, ignore, stash,
+ * branches, switch).
  *
  * The llm service is faked with an async generator so the suggest path is
- * exercised without a provider.
+ * exercised without a provider; the OS opener is not called (it would open a
+ * window on the machine running the smoke).
  */
 import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApiHandler } from '../lib/api.mjs';
 
 function sh(cwd, ...args) {
-  execFileSync('git', args, { cwd, stdio: 'ignore' });
+  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 }
 
 const home = await mkdtemp(join(tmpdir(), 'wg-home-'));
@@ -64,7 +68,6 @@ const ctx = {
   get(name) {
     if (name === 'llm') return fakeLlm();
     if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'fake', model: 'fake-model' }) };
-    if (name === 'workspaceRegistry') return undefined;
     return undefined;
   },
 };
@@ -94,6 +97,8 @@ function check(name, condition, detail = '') {
   console.log(`FAIL ${name} ${detail}`);
 }
 
+const repoBody = { workspaceId: 'demo', repo };
+
 try {
   process.env.DSH_HOME = home;
   await setup();
@@ -104,36 +109,86 @@ try {
   check('workspaces lists the temp workspace', found !== undefined && foundRoot !== undefined);
   check('a workspace holding a nested repo is "contains"', found?.git === 'contains', `got ${found?.git}`);
   check('a workspace that is itself a repo is "git"', foundRoot?.git === 'git', `got ${foundRoot?.git}`);
-  check('workspace lists the repo', found?.repos?.[0]?.label === 'demo', JSON.stringify(found?.repos));
 
   const saved = await api('POST', '/managed', { workspaces: [{ id: 'demo', path: workspace, title: 'demo' }] });
   check('managed saved', saved.managed.workspaces.length === 1);
 
-  const state = await api('GET', '/state');
-  const repoRow = state.workspaces[0]?.repos?.[0];
+  let state = await api('GET', '/state');
+  let repoRow = state.workspaces[0]?.repos?.[0];
   check('state reports the repo', repoRow?.repo === 'demo');
-  check('state reports the modified file', repoRow?.files?.some((file) => file.path === 'readme.txt'), JSON.stringify(repoRow?.files));
+  check('state reports the modified file under changes', repoRow?.groups?.changes?.some((file) => file.path === 'readme.txt'), JSON.stringify(repoRow?.groups));
   check('state reports the branch', repoRow?.branch === 'main' || repoRow?.branch === 'master', repoRow?.branch);
 
-  const staged = await api('POST', '/stage', { workspaceId: 'demo', repo: repoRow.path });
-  check('stage stages the change', staged.files.some((line) => line.includes('readme.txt')), JSON.stringify(staged.files));
+  const stagedAll = await api('POST', '/stage', repoBody);
+  check('stage all', stagedAll.action === 'staged-all', JSON.stringify(stagedAll));
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('staged file moves to the staged group', repoRow?.groups?.staged?.some((file) => file.path === 'readme.txt'));
 
-  const draft = await api('POST', '/suggest', { workspaceId: 'demo', repo: repoRow.path });
+  const draft = await api('POST', '/suggest', repoBody);
   check('suggest returns a message', typeof draft.message === 'string' && draft.message.startsWith('feat(panel)'), JSON.stringify(draft));
 
-  const commit = await api('POST', '/commit', { workspaceId: 'demo', repo: repoRow.path, message: draft.message });
+  const commit = await api('POST', '/commit', { ...repoBody, message: draft.message });
   check('commit succeeds', commit.ok === true && typeof commit.commit === 'string', JSON.stringify(commit));
 
-  const log = execFileSync('git', ['-C', repo, 'log', '-1', '--pretty=%s'], { encoding: 'utf8' }).trim();
+  const log = sh(repo, 'log', '-1', '--pretty=%s').trim();
   check('commit landed in the repo', log === 'feat(panel): add workaround git panel', log);
+
+  // ── file-level actions ────────────────────────────────────────────────────
+  await writeFile(join(repo, 'new-file.txt'), 'hello\n', 'utf8');
+  await writeFile(join(repo, 'readme.txt'), 'one\ntwo\nthree\n', 'utf8');
+
+  const stagedOne = await api('POST', '/stage', { ...repoBody, paths: ['new-file.txt'] });
+  check('stage one path', stagedOne.action === 'staged', JSON.stringify(stagedOne));
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('path staging lands in staged', repoRow?.groups?.staged?.some((file) => file.path === 'new-file.txt'));
+  check('unstaged edit stays in changes', repoRow?.groups?.changes?.some((file) => file.path === 'readme.txt'));
+
+  const unstaged = await api('POST', '/unstage', { ...repoBody, paths: ['new-file.txt'] });
+  check('unstage one path', unstaged.action === 'unstaged', JSON.stringify(unstaged));
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('unstage returns it to changes', repoRow?.groups?.changes?.some((file) => file.path === 'new-file.txt'));
+
+  const diff = await api('POST', '/diff', { ...repoBody, path: 'new-file.txt' });
+  check('diff of an untracked file is synthetic', diff.untracked === true && /new file/.test(diff.text), diff.text?.slice(0, 80));
+
+  const history = await api('POST', '/history', { ...repoBody, path: 'readme.txt' });
+  check('history lists commits', history.commits.length >= 2, JSON.stringify(history.commits?.length));
+
+  const discarded = await api('POST', '/discard', { ...repoBody, paths: ['readme.txt', 'new-file.txt'] });
+  check('discard reports both files', discarded.ok === true, JSON.stringify(discarded.results));
+  const restored = (await readFile(join(repo, 'readme.txt'), 'utf8')).replace(/\r\n/g, '\n');
+  check('discard restored the tracked file', restored === 'one\ntwo\n', JSON.stringify(restored));
+  check('discard deleted the untracked file', !existsSync(join(repo, 'new-file.txt')));
+
+  await writeFile(join(repo, 'ignored.tmp'), 'x\n', 'utf8');
+  const ignored = await api('POST', '/ignore', { ...repoBody, path: 'ignored.tmp', mode: 'file' });
+  const ignoredAgain = await api('POST', '/ignore', { ...repoBody, path: 'ignored.tmp', mode: 'file' });
+  check('ignore rule appended once', ignored.added === true && ignoredAgain.added === false, JSON.stringify({ ignored, ignoredAgain }));
+  check('gitignore contains the rule', (await readFile(join(repo, '.gitignore'), 'utf8')).includes('/ignored.tmp'));
+
+  await writeFile(join(repo, 'readme.txt'), 'one\ntwo\nfour\n', 'utf8');
+  const stashed = await api('POST', '/stash', { ...repoBody, paths: ['readme.txt'] });
+  check('stash succeeds', stashed.ok === true, JSON.stringify(stashed));
+  check('stash cleaned the worktree', sh(repo, 'status', '--porcelain', '--', 'readme.txt').trim() === '');
+  sh(repo, 'stash', 'pop');
+
+  sh(repo, 'branch', 'feature');
+  const branches = await api('POST', '/branches', repoBody);
+  check('branches lists feature', branches.branches.some((branch) => branch.name === 'feature'), JSON.stringify(branches.branches));
+  const switched = await api('POST', '/branch-switch', { ...repoBody, branch: 'feature' });
+  check('branch switch works', switched.ok === true, JSON.stringify(switched));
+  await api('POST', '/branch-switch', { ...repoBody, branch: repoRow.branch });
 
   let refused = null;
   try {
-    await api('POST', '/stage', { workspaceId: 'demo', repo: join(workspace, '..', 'elsewhere') });
+    await api('POST', '/stage', { ...repoBody, paths: ['../outside.txt'] });
   } catch (error) {
     refused = error.message;
   }
-  check('a repo outside the workspace is refused', refused !== null && /inside the managed workspace|not a git repository/.test(refused), refused ?? 'no error');
+  check('a path outside the repo is refused', refused !== null && /inside the repository/.test(refused), refused ?? 'no error');
 } finally {
   await new Promise((resolve) => server.close(resolve));
   await rm(home, { recursive: true, force: true });

@@ -102,17 +102,38 @@ repository, never wrapping to a second row. Four cards are visible on a wide
 pane (three, two or one as it narrows); when more repositories are managed the
 strip scrolls sideways with the wheel, a trackpad, or the ‹ › buttons that
 appear at the edges. Cards fill the pane when fewer than four exist. Every card
-keeps the same block order and fixed block heights — header rows, a 132px
-scrolling file area, a 64px message box, a two-row action bar, a status line —
-so the file list, message box and buttons of a row share one horizontal line.
-The single-column list view stays available from the header toggle and is
+keeps the same block order and fixed block heights — repository header, commit
+box, a 200px change area, status line — so the commit box, the staged section,
+the changes section and the buttons of a row share one horizontal line. The
+single-column list view stays available from the header toggle and is
 remembered in `localStorage` (`wg-view`).
 
-Each card shows branch, ahead/behind, file-level changes, and four actions —
-**stage & draft** (runs `git add --all`, then asks the model for a Conventional
-Commits message), **commit** (manual, uses the message in the box), **sync**,
-**push**. The model route comes from the session default (`agentDefaultModel`)
-or the first advertised provider; no API key ever reaches the plugin.
+Each card follows VS Code's source-control layout:
+
+- **Commit box** with a model button (✦) that drafts a Conventional Commits
+  message from the staged diff; the draft lands in the input and is never
+  committed automatically. The split button commits, or commits and pushes.
+- **Staged / changes sections** with the per-file status letter, name,
+  directory and `+added −removed`; headers collapse and carry stage-all /
+  unstage-all.
+- **Hover actions** per row: `＋` stages, `−` unstages, `↩` discards after a
+  confirmation dialog.
+- **Context menu** per file: open file, reveal in the file manager, copy path,
+  copy relative path, stage/unstage, add to `.gitignore` (file / extension /
+  directory, untracked files only), discard changes…, view diff, file history,
+  stash.
+- **Card menu**: stage all, unstage all, stash all, refresh, copy repo path,
+  reveal repo.
+- **Branch menu** in the card header lists local branches and switches with
+  `git switch`.
+- **Diff drawer** (unified patch with line numbers) and **file history** open
+  from a row click or the context menu.
+
+Discard is the only destructive action: it asks for confirmation, restores
+tracked files with `git restore --worktree`, and deletes untracked files — the
+untracked deletion cannot be undone. The model route comes from the session
+default (`agentDefaultModel`) or the first advertised provider; no API key ever
+reaches the plugin.
 
 The browser half talks to one prefix route, `/workaround-git/api`:
 
@@ -120,14 +141,22 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | --- | --- | --- |
 | GET | `/api/workspaces` | every workspace with its git state (`?refresh=1` bypasses the 60s cache) |
 | GET/POST | `/api/managed` | read / replace the managed list |
-| GET | `/api/state` | per-repo status and change list for every managed workspace |
-| POST | `/api/stage` | `git add --all` in one repo |
+| GET | `/api/state` | per-repo status with grouped staged / changes / conflicts |
+| POST | `/api/stage` | stage everything, or the listed `paths` |
+| POST | `/api/unstage` | unstage everything, or the listed `paths` |
+| POST | `/api/discard` | restore tracked files / delete untracked ones |
+| POST | `/api/ignore` | append a rule to the repo's `.gitignore` |
+| POST | `/api/open` | open a file, or reveal it in the file manager |
+| POST | `/api/diff` | unified diff for one file |
+| POST | `/api/history` | commits that touched a file |
+| POST | `/api/stash` | stash the listed paths |
+| POST | `/api/branches`, `/api/branch-switch` | list / switch local branches |
 | POST | `/api/suggest` | model-drafted commit message (no commit) |
 | POST | `/api/commit` | commit the message in the box |
 | POST | `/api/sync`, `/api/push` | per-repo sync / push |
 
-Mutations take `{workspaceId, repo}`; `repo` must resolve inside a managed
-workspace, so the browser cannot turn the panel into "run git anywhere".
+Mutations take `{workspaceId, repo}`; every `path` must resolve inside that
+repository, so the browser cannot turn the panel into "run git anywhere".
 
 ## Configure
 
