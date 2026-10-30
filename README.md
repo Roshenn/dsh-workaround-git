@@ -132,10 +132,16 @@ Each card follows VS Code's source-control layout:
   `git switch`.
 - **Per-repo pull / push**: the `↓` and `↑` buttons left of the branch chip run
   fetch + fast-forward and push respectively; a repo behind its upstream shows
-  an amber `↓N 可更新` badge.
+  a blue `↓N 可更新` badge.
+- **State colours**: every card carries a state dot and a tinted border /
+  background — amber for uncommitted changes, blue for commits to pull, green
+  for commits to push, red for conflicts. Count chips (`↑ahead`, `↓behind`,
+  files), section count badges and file status letters (M amber, A/U green,
+  D red, R violet) reuse the same palette so actionable spots stand out.
 - **Batch bar**: 批量拉取 / 批量推送 / 批量生成提交信息 act on every managed
-  repository; the result line reports success / skipped / failed counts, and
-  batch-generated drafts land in each card's commit box.
+  repository, colour-coded blue / green / violet; the result line reports
+  success / skipped / failed counts, and batch-generated drafts land in each
+  card's commit box.
 - **Open terminal**: the `>_` button right of the branch chip launches an
   interactive shell in the repository directory — `wt.exe -d <repo>` when
   Windows Terminal is available, otherwise a hidden PowerShell launcher that
