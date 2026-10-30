@@ -34,6 +34,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Panel API was never mounted: `ctx.get('webServer')` during `apply()` misses the service because the Loader mounts entries concurrently, so `/workaround-git/*` fell through to the SPA fallback and the panel reported `HTTP 404: response is not JSON`. The route now mounts through `ctx.inject(['webServer'], …)`.
 - The page rendered the empty workbench under the error banner when the API failed; it now shows a dedicated error state with a retry button.
 - Cards now fill the available pane height instead of leaving a large blank area below them: the change list is the flexible block (min 140px) and the strip/grid stretch to the viewport.
+- Per-file and per-repo actions failed with `repo must be inside the managed workspace` for workspaces that are themselves a git repository (the one-project-per-workspace layout): the guard treated the workspace root as an outside path. The root is now accepted; only paths that escape the workspace are refused.
 
 ## [0.1.0] - 2026-10-30
 

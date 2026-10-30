@@ -56,6 +56,8 @@ async function setup() {
   await writeFile(join(repo, 'readme.txt'), 'one\ntwo\n', 'utf8');
 
   sh(rootRepo, 'init', '-q');
+  sh(rootRepo, 'config', 'user.email', 'smoke@example.com');
+  sh(rootRepo, 'config', 'user.name', 'Smoke');
   await writeFile(join(rootRepo, 'root.txt'), 'root\n', 'utf8');
 }
 
@@ -240,6 +242,19 @@ try {
     refused = error.message;
   }
   check('a path outside the repo is refused', refused !== null && /inside the repository/.test(refused), refused ?? 'no error');
+
+  // ── workspace that is itself the repository ───────────────────────────────
+  await api('POST', '/managed', {
+    workspaces: [
+      { id: 'demo', path: workspace, title: 'demo' },
+      { id: 'root', path: rootRepo, title: 'root-repo' },
+    ],
+  });
+  const selfBranches = await api('POST', '/branches', { workspaceId: 'root', repo: rootRepo });
+  check('a workspace that is itself a repo is accepted', selfBranches.ok === true, JSON.stringify(selfBranches));
+  await api('POST', '/stage', { workspaceId: 'root', repo: rootRepo, paths: ['root.txt'] });
+  const selfCommit = await api('POST', '/commit', { workspaceId: 'root', repo: rootRepo, message: 'test: self repo commit' });
+  check('commit works when the repo is the workspace root', selfCommit.action === 'committed', JSON.stringify(selfCommit));
 } finally {
   await new Promise((resolve) => server.close(resolve));
   await rm(home, { recursive: true, force: true });
