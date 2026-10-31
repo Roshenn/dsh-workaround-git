@@ -39,6 +39,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.5.2] - 2026-10-31
+
+### Changed
+
+- 面板单卡「✓ 提交」改为先 `git add --all` 再提交：提交框里有 message 时，未暂存的修改与未追踪文件一并进入暂存区，与批量「✓ 批量添加并提交」一致；按钮 `title` 说明这一行为。`/api/commit` 的 `commitRepo` 调用从 `addAll: false` 改为 `true`。
+
+### Fixed
+
+- `commitRepo(..., { addAll: true })` 在存在合并冲突时直接返回 `action: 'conflict'`，避免 `git add --all` 把冲突标记静默标成已解决、再提交出去。
+
 ## [0.5.1] - 2026-10-31
 
 ### Added

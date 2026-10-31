@@ -106,3 +106,40 @@ test('commitRepo commits only the module and leaves the rest unstaged', async (t
   assert.deepEqual(committed.split('\n').filter(Boolean), ['module/a.txt']);
   assert.match(sh(root, 'status', '--porcelain'), /M root\.txt/);
 });
+
+test('commitRepo with addAll stages the module work tree before committing', async (t) => {
+  const { root, moduleDir } = await makeRepo(t);
+  await writeFile(join(root, 'root.txt'), 'root changed\n', 'utf8');
+  await writeFile(join(moduleDir, 'a.txt'), 'one\ntwo\n', 'utf8');
+  await writeFile(join(moduleDir, 'new.txt'), 'new\n', 'utf8');
+
+  const result = await commitRepo(moduleDir, 'feat: sweep the module', { root: moduleDir, addAll: true });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.action, 'committed');
+
+  const committed = sh(root, 'show', '--name-only', '--pretty=format:').split('\n').filter(Boolean).sort();
+  assert.deepEqual(committed, ['module/a.txt', 'module/new.txt'], 'modified and untracked module files both land in the commit');
+  assert.match(sh(root, 'status', '--porcelain'), /M root\.txt/, 'the rest of the repository stays unstaged');
+});
+
+test('commitRepo with addAll refuses a conflicted work tree', async (t) => {
+  const { root } = await makeRepo(t);
+  const base = sh(root, 'rev-parse', '--abbrev-ref', 'HEAD');
+  sh(root, 'checkout', '-q', '-b', 'other');
+  await writeFile(join(root, 'root.txt'), 'other side\n', 'utf8');
+  sh(root, 'commit', '-qam', 'other side');
+  sh(root, 'checkout', '-q', base);
+  await writeFile(join(root, 'root.txt'), 'base side\n', 'utf8');
+  sh(root, 'commit', '-qam', 'base side');
+  try {
+    sh(root, 'merge', 'other');
+  } catch {
+    // expected: the merge stops on a conflict
+  }
+  assert.equal(sh(root, 'status', '--porcelain').startsWith('U'), true, 'fixture is conflicted');
+
+  const result = await commitRepo(root, 'merge other', { root, addAll: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.action, 'conflict');
+  assert.match(result.error, /conflicted file/);
+});
