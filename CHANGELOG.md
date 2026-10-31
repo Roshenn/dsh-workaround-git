@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.5.1] - 2026-10-31
+
+### Added
+
+- `README.md` gains a **Screenshots** section: the sidebar panel (one card per repository) and the `git_workspace_status` table, captured from the running app and stored under `docs/screenshots/`. dsh's plugin market derives its catalog preview from README images, so the same two files serve there.
+
 ## [0.5.0] - 2026-10-30
 
 ### Added

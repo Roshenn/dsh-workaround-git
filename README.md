@@ -17,6 +17,16 @@ Parallel development across a workspace with several projects means the same fiv
 
 This plugin gives the model five verbs that operate on the whole workspace at once, and returns one table per verb: what changed, what moved, what failed and why.
 
+## Screenshots
+
+The sidebar panel: one card per repository, with a per-repo commit box, the staged / changes lists, and the batch actions on top.
+
+![Workspace Git panel preview: one card per repository, per-repo commit boxes, staged and working-tree changes, batch add-and-commit](https://raw.githubusercontent.com/Roshenn/dsh-workaround-git/main/docs/screenshots/panel.png)
+
+The status table `git_workspace_status` returns — one row per repo, branch, working tree, ahead/behind, last commit:
+
+![git_workspace_status table preview: repo, branch, working tree, ahead/behind and last commit for every repository in the workspace](https://raw.githubusercontent.com/Roshenn/dsh-workaround-git/main/docs/screenshots/status-table.png)
+
 ## Features
 
 - **Discovery, not configuration.** Every `.git` under the workspace root is a project, and a workspace that points at a subdirectory of a repository is a project scoped to that directory. No repo list to maintain, no config file to drift.
