@@ -262,6 +262,57 @@ try {
   }
   check('a path outside the repo is refused', refused !== null && /inside the repository/.test(refused), refused ?? 'no error');
 
+  // ── conflict lane ─────────────────────────────────────────────────────────
+  const baseBranch = repoRow.branch;
+  sh(repo, 'switch', '-q', '-c', 'smoke-conflict');
+  await writeFile(join(repo, 'readme.txt'), 'branch side\n', 'utf8');
+  sh(repo, 'commit', '-q', '-am', 'test: conflict side');
+  sh(repo, 'switch', '-q', baseBranch);
+  await writeFile(join(repo, 'readme.txt'), 'main side\n', 'utf8');
+  sh(repo, 'commit', '-q', '-am', 'test: main side');
+  try {
+    sh(repo, 'merge', 'smoke-conflict');
+  } catch {
+    // the conflict is the point
+  }
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('state exposes the in-progress merge', repoRow?.sequencer === 'merge', JSON.stringify(repoRow?.sequencer));
+  check(
+    'state names the conflicted file',
+    JSON.stringify((repoRow?.groups?.conflicts ?? []).map((file) => file.path)) === JSON.stringify(['readme.txt']),
+    JSON.stringify(repoRow?.groups?.conflicts),
+  );
+  const resolved = await api('POST', '/resolve', { ...repoBody, path: 'readme.txt', strategy: 'theirs' });
+  check('resolve takes one side and stages it', resolved.ok === true && resolved.action === 'resolved', JSON.stringify(resolved));
+  let blockedCommit = null;
+  try {
+    await api('POST', '/commit', { ...repoBody, message: 'test: would conclude silently' });
+  } catch (error) {
+    blockedCommit = error.message;
+  }
+  check('commit refuses to conclude a merge without allowSequencer', blockedCommit !== null, blockedCommit ?? 'no error');
+  const concluded = await api('POST', '/commit', { ...repoBody, message: 'test: conclude merge', allowSequencer: true });
+  check('commit with allowSequencer concludes the merge', concluded.action === 'committed', JSON.stringify(concluded));
+  check('the merge commit has two parents', sh(repo, 'log', '-1', '--pretty=%p').trim().split(/\s+/).filter(Boolean).length === 2);
+
+  sh(repo, 'switch', '-q', '-c', 'smoke-conflict-2');
+  await writeFile(join(repo, 'readme.txt'), 'second branch side\n', 'utf8');
+  sh(repo, 'commit', '-q', '-am', 'test: second conflict side');
+  sh(repo, 'switch', '-q', baseBranch);
+  await writeFile(join(repo, 'readme.txt'), 'second main side\n', 'utf8');
+  sh(repo, 'commit', '-q', '-am', 'test: second main side');
+  try {
+    sh(repo, 'merge', 'smoke-conflict-2');
+  } catch {
+    // expected
+  }
+  const aborted = await api('POST', '/sequencer', { ...repoBody, action: 'abort' });
+  check('sequencer abort cleans the operation up', aborted.ok === true && aborted.action === 'aborted', JSON.stringify(aborted));
+  state = await api('GET', '/state');
+  repoRow = state.workspaces[0]?.repos?.[0];
+  check('abort leaves no operation in progress', repoRow?.sequencer === null, JSON.stringify(repoRow?.sequencer));
+
   // ── workspace that is itself the repository ───────────────────────────────
   await api('POST', '/managed', {
     workspaces: [

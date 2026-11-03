@@ -39,6 +39,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.6.0] - 2026-11-03
+
+### Added
+
+- Conflict lane, host and panel: `repoStatus` reports the in-progress operation (`sequencer`: merge / rebase / cherry-pick / revert) and the unmerged file names, not just a count.
+- `git_workspace_conflicts` (new tool): `list` the operation and its files, resolve with `ours` / `theirs` / `stage`, then `continue` or `abort` (`abort` requires `confirm: true`; `dryRun` lists what would be lost).
+- `git_workspace_stage` and `git_workspace_restore` (new tools): file-level stage/unstage, and discard/stash with an explicit `confirm: true` for the irreversible one.
+- `git_workspace_commit` gains `stagedOnly` and a per-repo `paths` map: commit the index as it is, or stage and commit only the listed files (`git commit --only`), leaving other staged work in place.
+- Panel conflict actions: conflict rows lead with 用 Ours 解决 / 用 Theirs 解决 / 标记为已解决; an operation in progress shows a badge with 中止… and 继续; a fully resolved merge's commit button becomes `✓ 完成合并并提交` and sends `allowSequencer: true`.
+- Panel live refresh: 10 s poll while the page is visible and the batch bar idle, immediate refresh on window focus / tab-again (2 s throttle), quiet poll failures, a `最近更新 HH:MM:SS` stamp, and a reentrancy guard on card actions.
+- `POST /api/resolve` and `POST /api/sequencer`; `/api/commit` accepts `allowSequencer`.
+
+### Changed
+
+- `commitRepo` refuses to commit while a merge / rebase / cherry-pick / revert is in progress unless `allowSequencer` is set, so a batch commit can no longer conclude a merge by accident. A merge resolved to exactly the target side leaves a clean tree; that case used to report `nothing-to-commit` and made the merge commit impossible.
+- `git_workspace_status` names the conflicted files and marks the current operation; `/api/commit` answers 409 for `conflict` and `sequencer-active` instead of a generic 500.
+- Panel and API containment checks resolve symlinks/junctions: a junction inside a managed workspace that points elsewhere is refused instead of running git outside the workspace.
+
+### Fixed
+
+- Panel conflict rows always showed 文件历史 because the guard compared against `'conflict'` while the section key is `'conflicts'`.
+
 ## [0.5.2] - 2026-10-31
 
 ### Changed

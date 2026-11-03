@@ -46,14 +46,17 @@ test('plugin exports the cordis contract', () => {
   assert.equal(typeof plugin.apply, 'function');
 });
 
-test('apply registers the five git_workspace_* tools', () => {
+test('apply registers the git_workspace_* tools', () => {
   const tools = mount(ws.root);
   assert.deepEqual(
     [...tools.keys()].sort(),
     [
       'git_workspace_changes',
       'git_workspace_commit',
+      'git_workspace_conflicts',
       'git_workspace_push',
+      'git_workspace_restore',
+      'git_workspace_stage',
       'git_workspace_status',
       'git_workspace_sync',
     ],
@@ -132,4 +135,40 @@ test('non-agent callers fall back to process.cwd()', async () => {
   const tools = mount(ws.root);
   const value = await tools.get('git_workspace_status').execute({}, { signal: new AbortController().signal });
   assert.equal(typeof value.text, 'string');
+});
+
+test('git_workspace_conflicts reports a clean workspace as having nothing to resolve', async () => {
+  const tools = mount(ws.root);
+  const value = await tools.get('git_workspace_conflicts').execute({ action: 'list' }, exec());
+  assert.equal(value.ok, true);
+  assert.match(value.text, /No merge, rebase, cherry-pick or revert in progress/);
+});
+
+test('git_workspace_stage stages the named file and git_workspace_restore previews a discard', async () => {
+  const tools = mount(ws.root);
+  const staged = await tools.get('git_workspace_stage').execute({
+    files: { 'app-dirty': ['README.md'] },
+    action: 'stage',
+  }, exec());
+  assert.equal(staged.ok, true, staged.text);
+  assert.deepEqual(staged.repos, ['app-dirty']);
+  assert.match(staged.text, /\*\*stage\*\*/);
+
+  const preview = await tools.get('git_workspace_restore').execute({
+    files: { 'app-dirty': ['README.md'] },
+    action: 'discard',
+    dryRun: true,
+  }, exec());
+  assert.equal(preview.ok, true, preview.text);
+  assert.match(preview.text, /would-discard/);
+});
+
+test('git_workspace_restore refuses a discard without confirm: true', async () => {
+  const tools = mount(ws.root);
+  const value = await tools.get('git_workspace_restore').execute({
+    files: { 'app-dirty': ['README.md'] },
+    action: 'discard',
+  }, exec());
+  assert.equal(value.ok, false);
+  assert.match(value.text, /confirm: true/);
 });
