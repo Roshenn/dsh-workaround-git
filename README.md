@@ -166,7 +166,9 @@ Each card follows VS Code's source-control layout:
 - **Batch bar**: 批量拉取 / 批量推送 / 批量生成提交信息 act on every managed
   repository, colour-coded blue / green / violet; the result line reports
   success / skipped / failed counts, and batch-generated drafts land in each
-  card's commit box.
+  card's commit box. The buttons render enabled in the panel's first frame —
+  the entry path reads the managed store first and neither card loading nor the
+  remote check holds them disabled.
 - **Batch stage-and-commit**: ✓ 批量添加并提交 stages every pending change in
   each managed scope and commits it with that card's current message (edits
   count, not just generated drafts). It stays grey until every repo with pending
@@ -183,9 +185,13 @@ Each card follows VS Code's source-control layout:
   `Start-Process`es `powershell -NoExit` in that directory (`open -a Terminal`
   on macOS, `x-terminal-emulator` on Linux). The path is passed as the working
   directory or a single argv element, never interpolated into a shell string.
-- **Remote update check**: opening the panel (and pressing 刷新) runs `git
-  fetch` on every managed repository; the header shows how many repos have
-  updates, and a failed fetch only surfaces a small warning.
+- **Remote update check**: opening the panel runs `git fetch` on every managed
+  repository in the background, after the cards render. The header shows a
+  spinning 检查远端更新… chip (`role="status"`, no motion under
+  `prefers-reduced-motion`) while it runs, and the batch buttons stay clickable
+  the whole time; repos behind their upstream then show an amber `↓N 可更新`
+  badge plus a header count, and a failed fetch only surfaces a small warning.
+  Pressing 刷新 runs the check again.
 - **Conflict lane**: a card with an operation in progress shows a badge (合并中 /
   变基中 / 拣选中 / 回滚中) plus 中止… (confirmed, destructive) and 继续 (rebase /
   cherry-pick / revert only, disabled while conflicts remain). A conflict row's

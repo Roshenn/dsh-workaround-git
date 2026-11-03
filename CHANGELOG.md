@@ -39,6 +39,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.7.0] - 2026-11-03
+
+### Added
+
+- A loading chip for the background remote check: a 700 ms spinner next to 检查远端更新…, announced through `role="status"` / `aria-live="polite"` and frozen under `prefers-reduced-motion`. Toolbar buttons also scale to 0.97 on press so a click is visibly heard.
+
+### Changed
+
+- Entering the panel no longer waits for the remote check. It reads the managed store (`GET /api/managed`), renders the toolbar in the first frame, and starts the `git fetch` round 150 ms later; the four batch buttons stay clickable while that check runs. The fetch measured 3.6–5.2 s per GitHub repo here, all of which used to be spent with the buttons greyed out.
+- The header is not gated on the workspace probe any more: `GET /api/workspaces` — which classifies every dsh workspace with git — is requested only when the picker opens. The entry path is one cheap read followed by `/api/state`, so the panel no longer scans workspaces it does not display.
+- A batch 拉取 / 推送 clicked while the background check is running waits for that check instead of starting a second fetch against the same repositories.
+
+## [0.6.1] - 2026-11-03
+
+### Added
+
+- `repoSnapshot` and `parsePorcelainV2Z` in `lib/git.mjs`: one snapshot per card now answers what `repoStatus` + `repoChangeList` + `repoRemote` + `repoRootAt` answered in three sequential waves. A parity test pins it against the old primitives, including a stopped merge and its conflicted files.
+- `scripts/bench-panel.mjs` — measures the panel entry path on this machine's managed workspaces (`GET /api/managed` read, `/api/state` runs, and `--fetch` for a network probe); read-only.
+
+### Changed
+
+- `GET /api/state` is cheaper: one `rev-parse` (work-tree root, scope prefix, git dir), one `status --porcelain=v2 --branch -z` that supplies both the counts and the grouped file list, `log -1` and `remote get-url` all run concurrently, and the per-file numstat is skipped for a clean repository. Measured here with seven managed workspaces: 937 ms → 560–700 ms for the same six repositories. The response shape is unchanged.
+- The remote URL is cached for 60 s (`repoRemote(…, { fresh: true })` bypasses the cache), so the panel's 10 s poll no longer respawns git for every card.
+- `GET /api/state` reads workspace ids and titles from dsh's registry (`rawWorkspaces`) instead of probing every workspace with git; the git-probing classification stays in `/api/workspaces`, which only the picker asks for.
+- `/api/fetch` runs six repositories at a time instead of four, shortening the background remote check.
+
 ## [0.6.0] - 2026-11-03
 
 ### Added
@@ -60,20 +86,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Panel conflict rows always showed 文件历史 because the guard compared against `'conflict'` while the section key is `'conflicts'`.
-
-## [0.6.1] - 2026-11-03
-
-### Added
-
-- `repoSnapshot` and `parsePorcelainV2Z` in `lib/git.mjs`: one snapshot per card now answers what `repoStatus` + `repoChangeList` + `repoRemote` + `repoRootAt` answered in three sequential waves. A parity test pins it against the old primitives, including a stopped merge and its conflicted files.
-- `scripts/bench-panel.mjs` — measures the panel entry path on this machine's managed workspaces (`GET /api/managed` read, `/api/state` runs, and `--fetch` for a network probe); read-only.
-
-### Changed
-
-- `GET /api/state` is cheaper: one `rev-parse` (work-tree root, scope prefix, git dir), one `status --porcelain=v2 --branch -z` that supplies both the counts and the grouped file list, `log -1` and `remote get-url` all run concurrently, and the per-file numstat is skipped for a clean repository. Measured here with seven managed workspaces: 937 ms → 560–700 ms for the same six repositories. The response shape is unchanged.
-- The remote URL is cached for 60 s (`repoRemote(…, { fresh: true })` bypasses the cache), so the panel's 10 s poll no longer respawns git for every card.
-- `GET /api/state` reads workspace ids and titles from dsh's registry (`rawWorkspaces`) instead of probing every workspace with git; the git-probing classification stays in `/api/workspaces`, which only the picker asks for.
-- `/api/fetch` runs six repositories at a time instead of four, shortening the background remote check.
 
 ## [0.5.2] - 2026-10-31
 
