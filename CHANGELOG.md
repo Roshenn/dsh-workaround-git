@@ -61,6 +61,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Panel conflict rows always showed 文件历史 because the guard compared against `'conflict'` while the section key is `'conflicts'`.
 
+## [0.6.1] - 2026-11-03
+
+### Added
+
+- `repoSnapshot` and `parsePorcelainV2Z` in `lib/git.mjs`: one snapshot per card now answers what `repoStatus` + `repoChangeList` + `repoRemote` + `repoRootAt` answered in three sequential waves. A parity test pins it against the old primitives, including a stopped merge and its conflicted files.
+- `scripts/bench-panel.mjs` — measures the panel entry path on this machine's managed workspaces (`GET /api/managed` read, `/api/state` runs, and `--fetch` for a network probe); read-only.
+
+### Changed
+
+- `GET /api/state` is cheaper: one `rev-parse` (work-tree root, scope prefix, git dir), one `status --porcelain=v2 --branch -z` that supplies both the counts and the grouped file list, `log -1` and `remote get-url` all run concurrently, and the per-file numstat is skipped for a clean repository. Measured here with seven managed workspaces: 937 ms → 560–700 ms for the same six repositories. The response shape is unchanged.
+- The remote URL is cached for 60 s (`repoRemote(…, { fresh: true })` bypasses the cache), so the panel's 10 s poll no longer respawns git for every card.
+- `GET /api/state` reads workspace ids and titles from dsh's registry (`rawWorkspaces`) instead of probing every workspace with git; the git-probing classification stays in `/api/workspaces`, which only the picker asks for.
+- `/api/fetch` runs six repositories at a time instead of four, shortening the background remote check.
+
 ## [0.5.2] - 2026-10-31
 
 ### Changed

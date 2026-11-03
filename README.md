@@ -1,4 +1,4 @@
-﻿# dsh-workaround-git
+# dsh-workaround-git
 
 DeepSeek Harness (dsh) plugin: batch git operations across every repo in a workspace — one status table, one sync, one commit per repo's own diff, one push.
 
@@ -103,6 +103,7 @@ Sanity checks before restarting:
 ```bash
 node --test                     # host half
 node scripts/smoke-panel.mjs    # panel API end to end against a temp repo
+node scripts/bench-panel.mjs    # entry-path timings on the managed workspaces here
 ```
 
 ## Panel (browser half)

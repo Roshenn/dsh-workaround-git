@@ -20,10 +20,14 @@ import {
   openTerminal,
   openerArgv,
   parsePorcelainV2Detailed,
+  parsePorcelainV2Z,
   repoChangeList,
   repoDiff,
   repoHistory,
   repoRemote,
+  repoRootAt,
+  repoSnapshot,
+  repoStatus,
   stagePaths,
   switchBranch,
   terminalCandidates,
@@ -172,12 +176,16 @@ test('listBranches and switchBranch work and reject unknown branches', async (t)
 
 test('repoRemote returns the origin URL and falls back to the first remote', async (t) => {
   const repo = await makeRepo(t);
-  assert.deepEqual(await repoRemote(repo), { name: null, url: null });
+  assert.deepEqual(await repoRemote(repo, { fresh: true }), { name: null, url: null });
 
   sh(repo, 'remote', 'add', 'upstream', 'https://example.com/upstream.git');
-  assert.deepEqual(await repoRemote(repo), { name: 'upstream', url: 'https://example.com/upstream.git' });
+  assert.deepEqual(await repoRemote(repo, { fresh: true }), { name: 'upstream', url: 'https://example.com/upstream.git' });
 
   sh(repo, 'remote', 'add', 'origin', 'https://example.com/demo.git');
+  assert.deepEqual(await repoRemote(repo, { fresh: true }), { name: 'origin', url: 'https://example.com/demo.git' });
+
+  // Cached for a minute so the panel's entry payload does not respawn git for
+  // an unchanged URL; the cached call still answers with the value read above.
   assert.deepEqual(await repoRemote(repo), { name: 'origin', url: 'https://example.com/demo.git' });
 });
 
@@ -232,4 +240,96 @@ test('terminalCandidates open a shell at the repository directory', async () => 
 
   const missing = await openTerminal('C:\\definitely\\missing\\repo-path');
   assert.equal(missing.ok, false);
+});
+
+test('parsePorcelainV2Z reads the branch header and the file records from one -z output', async (t) => {
+  const repo = await makeRepo(t);
+  await writeFile(join(repo, 'a.txt'), 'one\ntwo\n', 'utf8');
+  sh(repo, 'add', 'a.txt');
+  await writeFile(join(repo, 'a.txt'), 'one\ntwo\nthree\n', 'utf8');
+  await writeFile(join(repo, 'new.txt'), 'n\n', 'utf8');
+
+  const raw = execFileSync('git', ['-C', repo, 'status', '--porcelain=v2', '--branch', '-z'], { encoding: 'utf8' });
+  const { summary, entries } = parsePorcelainV2Z(raw);
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+
+  assert.equal(typeof summary.branch, 'string');
+  assert.equal(summary.staged, 1);
+  assert.equal(summary.modified, 1);
+  assert.equal(summary.untracked, 1);
+  assert.equal(byPath.get('a.txt').index, 'M');
+  assert.equal(byPath.get('a.txt').worktree, 'M');
+  assert.equal(byPath.get('new.txt').untracked, true);
+});
+
+test('repoSnapshot equals repoStatus + repoChangeList + repoRemote + repoRootAt', async (t) => {
+  const repo = await makeRepo(t);
+  await writeFile(join(repo, 'a.txt'), 'one\ntwo\n', 'utf8');
+  sh(repo, 'add', 'a.txt');
+  await writeFile(join(repo, 'a.txt'), 'one\ntwo\nthree\n', 'utf8');
+  await writeFile(join(repo, 'new.txt'), 'n\n', 'utf8');
+  sh(repo, 'remote', 'add', 'origin', 'https://example.com/demo.git');
+
+  const snapshot = await repoSnapshot(repo, { root: repo });
+  const status = await repoStatus(repo, { root: repo });
+  const changes = await repoChangeList(repo);
+  const rootAt = await repoRootAt(repo);
+  const remote = await repoRemote(repo);
+
+  assert.equal(snapshot.ok, true, snapshot.error);
+  assert.equal(snapshot.repo, status.repo);
+  assert.equal(snapshot.path, status.path);
+  assert.equal(snapshot.repoRoot, rootAt);
+  assert.equal(snapshot.branch, status.branch);
+  assert.equal(snapshot.ahead, status.ahead);
+  assert.equal(snapshot.behind, status.behind);
+  assert.equal(snapshot.staged, status.staged);
+  assert.equal(snapshot.modified, status.modified);
+  assert.equal(snapshot.untracked, status.untracked);
+  assert.equal(snapshot.conflicted, status.conflicted);
+  assert.equal(snapshot.sequencer, null);
+  assert.equal(snapshot.dirty, status.dirty);
+  assert.deepEqual(snapshot.conflictPaths, status.conflictPaths);
+  // `%cr` is a relative time ("2 seconds ago"), so compare the identity of the
+  // commit, not the string that changes as the test runs.
+  assert.equal(snapshot.lastCommit?.hash, status.lastCommit?.hash);
+  assert.equal(snapshot.lastCommit?.subject, status.lastCommit?.subject);
+  assert.deepEqual(snapshot.remote, remote);
+  assert.deepEqual(snapshot.groups.staged.map((file) => file.path), changes.staged.map((file) => file.path));
+  assert.deepEqual(
+    snapshot.groups.changes.map((file) => file.path).sort(),
+    changes.changes.map((file) => file.path).sort(),
+  );
+  assert.deepEqual(snapshot.groups.conflicts, changes.conflicts);
+  assert.deepEqual(snapshot.totals, {
+    staged: changes.staged.length,
+    changes: changes.changes.length,
+    conflicts: changes.conflicts.length,
+  });
+});
+
+test('repoSnapshot reports a stopped merge and its conflicted files', async (t) => {
+  const repo = await makeRepo(t);
+  const branch = sh(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+  sh(repo, 'switch', '-q', '-c', 'feature');
+  await writeFile(join(repo, 'a.txt'), 'feature\n', 'utf8');
+  sh(repo, 'commit', '-q', '-am', 'feat: feature');
+  sh(repo, 'switch', '-q', branch);
+  await writeFile(join(repo, 'a.txt'), 'main\n', 'utf8');
+  sh(repo, 'commit', '-q', '-am', 'feat: main');
+  try {
+    execFileSync('git', ['-C', repo, 'merge', 'feature'], { stdio: 'pipe' });
+  } catch {
+    // the conflict is the point
+  }
+
+  const snapshot = await repoSnapshot(repo, { root: repo });
+  assert.equal(snapshot.ok, true, snapshot.error);
+  assert.equal(snapshot.sequencer, 'merge');
+  assert.equal(snapshot.conflicted, 1);
+  assert.deepEqual(snapshot.conflictPaths, ['a.txt']);
+  assert.equal(snapshot.groups.conflicts.length, 1);
+  assert.equal(snapshot.groups.conflicts[0].status, 'U');
+  assert.equal(snapshot.dirty, true);
+  assert.equal(snapshot.totals.conflicts, 1);
 });
