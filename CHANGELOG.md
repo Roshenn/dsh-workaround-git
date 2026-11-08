@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.9.0] - 2026-11-08
+
+### Added
+
+- Batch commit-message generation no longer looks frozen: the header shows a spinner chip (`正在生成提交信息（N 个仓库）…`, `role="status"`), every target card whose message box is still empty swaps it for a shimmering skeleton, cards that already hold text get a violet outline, the batch button carries a spinner while it is disabled, and the per-card ✦ button spins during a single-repo draft. Commit controls on a generating card are disabled so a click cannot race the incoming draft. `prefers-reduced-motion: reduce` replaces the shimmer with a static tint.
+
 ## [0.8.0] - 2026-11-03
 
 ### Changed
