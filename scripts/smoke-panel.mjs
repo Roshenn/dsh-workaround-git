@@ -262,6 +262,32 @@ try {
   }
   check('a path outside the repo is refused', refused !== null && /inside the repository/.test(refused), refused ?? 'no error');
 
+  // ── one-click sync ───────────────────────────────────────────────────────
+  // The whole pipeline (fetch → draft + commit → rebase → push) behind one call.
+  // `batch-skip.txt` is still untracked here, so this run has real work to do.
+  await writeFile(join(repo, 'onesync.txt'), 'one click\n', 'utf8');
+  const synced = await api('POST', '/autosync', {});
+  check(
+    'autosync syncs the managed repo',
+    synced.okCount >= 1 && synced.skippedCount === 0 && synced.failedCount === 0,
+    JSON.stringify(synced),
+  );
+  const syncRow = synced.results?.[0] ?? {};
+  check(
+    'autosync runs every step in order',
+    syncRow.steps?.fetch === 'fetched' && syncRow.steps?.commit === 'committed'
+      && syncRow.steps?.merge !== 'skipped' && syncRow.steps?.push === 'pushed',
+    JSON.stringify(syncRow.steps),
+  );
+  check('autosync committed the local change', sh(repo, 'log', '-1', '--pretty=%s').trim() === 'feat(panel): add workaround git panel', sh(repo, 'log', '-1', '--pretty=%s'));
+  check('autosync pushed it to the remote', sh(bare, 'log', '-1', '--pretty=%s').trim() === 'feat(panel): add workaround git panel', sh(bare, 'log', '-1', '--pretty=%s'));
+  const syncedAgain = await api('POST', '/autosync', {});
+  check(
+    'autosync is idempotent on a clean repo',
+    syncedAgain.okCount === 1 && syncedAgain.results[0].steps.push === 'up-to-date',
+    JSON.stringify(syncedAgain.results?.[0]?.steps),
+  );
+
   // ── conflict lane ─────────────────────────────────────────────────────────
   const baseBranch = repoRow.branch;
   sh(repo, 'switch', '-q', '-c', 'smoke-conflict');

@@ -39,6 +39,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.10.0] - 2026-11-12
+
+### Added
+
+- **一键同步 (`⚡ 一键同步`)** — the whole batch flow behind one click, for every
+  managed repository, in order: `git fetch` → model-drafted commit message plus a
+  commit for the pending changes → `git pull --rebase` → `git push`.
+  - New `POST /api/autosync` and `lib/autosync.mjs` (`autosyncRepo` / `autosyncRefs`),
+    built from the existing `git.mjs` primitives; each repo is one result row with
+    a `steps` breakdown (`fetch` / `commit` / `merge` / `push`).
+  - Skips instead of forcing: no remote, no upstream, an unfinished
+    merge/rebase/cherry-pick, unresolved conflicts, or a commit message the model
+    could not produce. A conflicting rebase stops that repo, leaves it mid-rebase
+    for the conflict lane, and never pushes.
+  - `push` runs with `setUpstream: false` and no `--force`, so a rejected
+    non-fast-forward push is reported, not forced.
+- The button is the toolbar's only primary (filled) button and sits right of
+  `✓ 批量添加并提交`; a `正在一键同步…` header chip and one `一键同步：N 同步 / M 跳过 / K 失败`
+  result line report progress.
+- `test/autosync.test.mjs` (9 cases against real git) and a one-click section in
+  `scripts/smoke-panel.mjs`.
+
+### Changed
+
+- `✓ 批量添加并提交` lost its primary fill so the bar has exactly one filled
+  button; behaviour is unchanged.
+
 ## [0.9.0] - 2026-11-08
 
 ### Added

@@ -175,6 +175,16 @@ Each card follows VS Code's source-control layout:
   changes has a message, so one click never commits a repo with an empty or
   borrowed message; repos with merge conflicts and repos without a message are
   reported as skipped.
+- **One-click sync**: ⚡ 一键同步 chains the whole batch flow behind one click for
+  every managed repository — `git fetch`, a model-drafted message plus a commit
+  for the pending changes, `git pull --rebase` to integrate the remote, then
+  `git push`. It is the bar's only primary (filled) button, because it is the only
+  action that pushes without a second click. A repo is skipped — never
+  force-handled — when it has no remote, no upstream, an unfinished
+  merge/rebase/cherry-pick, or no generated commit message; a conflicting rebase
+  stops that repo and leaves it in the conflict lane instead of pushing. The
+  result line reports synced / skipped / failed counts, and the header shows a
+  spinning 正在一键同步… chip while the pipeline runs.
 - **Cards per screen**: 管理工作区 starts with a 显示设置 row whose
   `默认每屏显示项目数` selector picks 1–8 cards (default 4); the choice is
   remembered in `localStorage` (`wg-columns`) and applied immediately, while a
@@ -226,6 +236,7 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/ignore` | append a rule to the repo's `.gitignore` |
 | POST | `/api/fetch` | fetch every managed repo (or one) and report per-repo failures |
 | POST | `/api/batch` | pull / push / suggest / stage-and-commit across every managed repo |
+| POST | `/api/autosync` | one-click pipeline per managed repo: fetch → draft + commit → rebase → push |
 | POST | `/api/open` | open a file, or reveal it in the file manager |
 | POST | `/api/terminal` | open an interactive terminal at the repository directory |
 | POST | `/api/diff` | unified diff for one file |
