@@ -182,9 +182,20 @@ Each card follows VS Code's source-control layout:
   action that pushes without a second click. A repo is skipped — never
   force-handled — when it has no remote, no upstream, an unfinished
   merge/rebase/cherry-pick, or no generated commit message; a conflicting rebase
-  stops that repo and leaves it in the conflict lane instead of pushing. The
-  result line reports synced / skipped / failed counts, and the header shows a
-  spinning 正在一键同步… chip while the pipeline runs.
+  stops that repo and leaves it in the conflict lane instead of pushing.
+- **One-click sync runs in parallel waves**: all repositories `fetch` at once
+  and, because the network round trip and the model call are independent, every
+  dirty repo drafts and commits while its fetch is still in flight. Rebasing and
+  pushing then run as one wave each. A twelve-repo workspace costs roughly the
+  slowest repo rather than the sum of twelve, and a remote check that finished in
+  the last 15 seconds is reused instead of fetching every repo a second time.
+- **One-click sync progress**: the header shows a progress bar with
+  `已完成/总数 · 当前阶段 · 已用秒数` (the stage names every concurrent stage, e.g.
+  `抓取/生成中`), and every card carries a five-dot strip — 抓取 / 生成 / 提交 / 合并
+  / 推送 — that marks each stage pending, running, done, skipped or failed, plus
+  the per-repo elapsed time once it settles. Card actions are dimmed while its
+  repo is in flight, and the hover title names the stage timings in milliseconds.
+  The result line reports synced / skipped / failed counts and total seconds.
 - **Cards per screen**: 管理工作区 starts with a 显示设置 row whose
   `默认每屏显示项目数` selector picks 1–8 cards (default 4); the choice is
   remembered in `localStorage` (`wg-columns`) and applied immediately, while a
@@ -236,7 +247,8 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/ignore` | append a rule to the repo's `.gitignore` |
 | POST | `/api/fetch` | fetch every managed repo (or one) and report per-repo failures |
 | POST | `/api/batch` | pull / push / suggest / stage-and-commit across every managed repo |
-| POST | `/api/autosync` | one-click pipeline per managed repo: fetch → draft + commit → rebase → push |
+| POST | `/api/autosync` | start one-click sync; returns `{ jobId, total, reusedFetch }` immediately |
+| GET | `/api/autosync/<id>` | per-repo, per-stage progress for that job (poll it) |
 | POST | `/api/open` | open a file, or reveal it in the file manager |
 | POST | `/api/terminal` | open an interactive terminal at the repository directory |
 | POST | `/api/diff` | unified diff for one file |

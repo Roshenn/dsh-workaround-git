@@ -107,6 +107,17 @@ function check(name, condition, detail = '') {
 
 const repoBody = { workspaceId: 'demo', repo };
 
+/** Start one-click sync and poll its job snapshot the way the panel does. */
+async function autosyncJob() {
+  const started = await api('POST', '/autosync', {});
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const job = await api('GET', `/autosync/${started.jobId}`);
+    if (job.status !== 'running') return job;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  throw new Error(`autosync job ${started.jobId} did not finish`);
+}
+
 try {
   process.env.DSH_HOME = home;
   await setup();
@@ -263,30 +274,41 @@ try {
   check('a path outside the repo is refused', refused !== null && /inside the repository/.test(refused), refused ?? 'no error');
 
   // ── one-click sync ───────────────────────────────────────────────────────
-  // The whole pipeline (fetch → draft + commit → rebase → push) behind one call.
+  // One click starts a host-side job; the panel polls it for per-stage progress.
   // `batch-skip.txt` is still untracked here, so this run has real work to do.
-  await writeFile(join(repo, 'onesync.txt'), 'one click\n', 'utf8');
-  const synced = await api('POST', '/autosync', {});
+  const syncedJob = await autosyncJob();
   check(
     'autosync syncs the managed repo',
-    synced.okCount >= 1 && synced.skippedCount === 0 && synced.failedCount === 0,
-    JSON.stringify(synced),
+    syncedJob.okCount >= 1 && syncedJob.skippedCount === 0 && syncedJob.failedCount === 0,
+    JSON.stringify({ ok: syncedJob.okCount, skipped: syncedJob.skippedCount, failed: syncedJob.failedCount }),
   );
-  const syncRow = synced.results?.[0] ?? {};
+  const syncRow = syncedJob.rows?.[0] ?? {};
   check(
-    'autosync runs every step in order',
-    syncRow.steps?.fetch === 'fetched' && syncRow.steps?.commit === 'committed'
-      && syncRow.steps?.merge !== 'skipped' && syncRow.steps?.push === 'pushed',
+    'autosync runs every stage in order',
+    syncRow.steps?.fetch === 'done' && syncRow.steps?.draft === 'done' && syncRow.steps?.commit === 'done'
+      && syncRow.steps?.merge === 'done' && syncRow.steps?.push === 'done',
     JSON.stringify(syncRow.steps),
+  );
+  check(
+    'autosync reports per-stage timings',
+    Object.keys(syncRow.ms ?? {}).length >= 3 && typeof syncedJob.elapsedMs === 'number',
+    JSON.stringify(syncRow.ms),
   );
   check('autosync committed the local change', sh(repo, 'log', '-1', '--pretty=%s').trim() === 'feat(panel): add workaround git panel', sh(repo, 'log', '-1', '--pretty=%s'));
   check('autosync pushed it to the remote', sh(bare, 'log', '-1', '--pretty=%s').trim() === 'feat(panel): add workaround git panel', sh(bare, 'log', '-1', '--pretty=%s'));
-  const syncedAgain = await api('POST', '/autosync', {});
+  const syncedAgain = await autosyncJob();
   check(
     'autosync is idempotent on a clean repo',
-    syncedAgain.okCount === 1 && syncedAgain.results[0].steps.push === 'up-to-date',
-    JSON.stringify(syncedAgain.results?.[0]?.steps),
+    syncedAgain.okCount === 1 && syncedAgain.rows[0].steps.draft === 'skipped',
+    JSON.stringify(syncedAgain.rows?.[0]?.steps),
   );
+  let missingJob = null;
+  try {
+    await api('GET', '/autosync/no-such-job');
+  } catch (error) {
+    missingJob = error.message;
+  }
+  check('an unknown autosync job is a 404', missingJob !== null && /no sync job/.test(missingJob), missingJob ?? 'no error');
 
   // ── conflict lane ─────────────────────────────────────────────────────────
   const baseBranch = repoRow.branch;

@@ -39,6 +39,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.11.0] - 2026-11-13
+
+### Added
+
+- **Per-stage progress for 一键同步.** `POST /api/autosync` now starts a job and
+  returns `{ jobId, total, reusedFetch }` immediately; the panel polls
+  `GET /api/autosync/<id>` every 250 ms and paints:
+  - a header bar with `已完成/总数 · 当前阶段 · 已用秒数`, naming every stage that is
+    running at that moment (e.g. `抓取/生成中`);
+  - a five-dot strip per card (抓取 / 生成 / 提交 / 合并 / 推送) with pending,
+    running, done, skipped and failed states, plus the per-repo elapsed time
+    once it settles and per-stage milliseconds in the hover title.
+  Finished jobs stay readable for ten minutes and the last snapshot stays on
+  screen as a record; card actions are dimmed for a repo while it is in flight.
+- `syncRepo(..., { fetchFirst: false })` so the pipeline integrates the remote
+  without re-fetching refs it already fetched seconds earlier.
+
+### Changed
+
+- **一键同步 runs in parallel waves.** It used to be one repo at a time, two at a
+  time: every dirty repository paid its own model call in a queue, so a
+  twelve-repo workspace cost the *sum* of the drafts. Now every repository
+  fetches at once and, because the network round trip and the model call are
+  independent, drafts and commits while the fetch is still in flight; rebase and
+  push are one wave each. Measured against twelve local repositories with a 2.8 s
+  model call, the whole job took 3.3 s — about 0.4 s of pipeline overhead on top
+  of the slowest single model call.
+- A remote check that finished within the last 15 seconds (the panel's own
+  background fetch) is reused, so clicking 一键同步 right after opening or
+  refreshing the panel skips the fetch wave entirely. `POST /api/fetch` records
+  the timestamp only when every repository succeeded.
+- Per-repo `steps` are now `fetch` / `draft` / `commit` / `merge` / `push` with
+  `pending | active | done | skipped | failed` instead of the old free-form
+  action strings, and the job snapshot carries `rows` (per repo) rather than the
+  old single-shot `results`.
+
 ## [0.10.0] - 2026-11-12
 
 ### Added
