@@ -150,8 +150,8 @@ card body stretches to the pane height. Every card keeps the same block order �
 repository header (name, branch, origin URL), commit box, a flexible change
 area (min 140px) that fills the leftover height, status line — so the commit
 box, the staged section, the changes section and the buttons of a row share one
-horizontal line. The single-column list view stays available from the header
-toggle and is remembered in `localStorage` (`wg-view`).
+horizontal line. The strip is the only view — there is no list mode to switch
+to, so the cards never reflow into a second layout.
 
 Each card follows VS Code's source-control layout:
 
@@ -182,12 +182,12 @@ Each card follows VS Code's source-control layout:
   for commits to push, red for conflicts. Count chips (`↑ahead`, `↓behind`,
   files), section count badges and file status letters (M amber, A/U green,
   D red, R violet) reuse the same palette so actionable spots stand out.
-- **Batch bar**: 批量拉取 / 批量推送 / 批量生成提交信息 act on every managed
-  repository, colour-coded blue / green / violet; the result line reports
-  success / skipped / failed counts, and batch-generated drafts land in each
-  card's commit box. The buttons render enabled in the panel's first frame —
-  the entry path reads the managed store first and neither card loading nor the
-  remote check holds them disabled.
+- **Batch bar**: 批量生成提交信息 drafts a message for every repository with
+  pending changes; the result line reports the drafts and any failures, and each
+  draft lands in its card's commit box. Pull and push stay per card (the `↓` / `↑`
+  buttons) or across the whole workspace via ⚡ 一键同步. The buttons render
+  enabled in the panel's first frame — the entry path reads the managed store
+  first and neither card loading nor the remote check holds them disabled.
 - **Batch stage-and-commit**: ✓ 批量添加并提交 stages every pending change in
   each managed scope and commits it with that card's current message (edits
   count, not just generated drafts). It stays grey until every repo with pending
