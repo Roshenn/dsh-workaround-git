@@ -327,19 +327,25 @@ test('repos run in parallel waves, so one slow draft does not queue the others',
     writeFileSync(join(dir, 'README.md'), 'base\nchanged\n');
   }
   let calls = 0;
+  let inFlight = 0;
+  let maxInFlight = 0;
   const ctx = fakeCtx(async () => {
     calls += 1;
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 300));
-    return 'test: parallel';
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    try {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 300));
+      return 'test: parallel';
+    } finally {
+      inFlight -= 1;
+    }
   });
 
-  const startedAt = Date.now();
   const job = await runAutosync(ctx, repos.map(({ dir, root }) => ref(root, dir)));
-  const elapsed = Date.now() - startedAt;
 
   assert.equal(calls, 3, 'every dirty repo got its own draft');
   assert.equal(job.okCount, 3);
-  // Sequential would need at least 900ms of model time alone; in waves it is
-  // one 300ms wave plus git overhead. The bound is loose on purpose.
-  assert.ok(elapsed < 800, `three 300ms drafts took ${elapsed}ms, which looks sequential`);
+  // A wall-clock bound is flaky on Windows, where spawning git for five stages
+  // dominates; assert the property directly — the draft calls overlapped.
+  assert.ok(maxInFlight >= 2, `drafts never overlapped (max ${maxInFlight} in flight)`);
 });
