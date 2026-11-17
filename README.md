@@ -188,12 +188,6 @@ Each card follows VS Code's source-control layout:
   buttons) or across the whole workspace via ⚡ 一键同步. The buttons render
   enabled in the panel's first frame — the entry path reads the managed store
   first and neither card loading nor the remote check holds them disabled.
-- **Batch stage-and-commit**: ✓ 批量添加并提交 stages every pending change in
-  each managed scope and commits it with that card's current message (edits
-  count, not just generated drafts). It stays grey until every repo with pending
-  changes has a message, so one click never commits a repo with an empty or
-  borrowed message; repos with merge conflicts and repos without a message are
-  reported as skipped.
 - **One-click sync**: ⚡ 一键同步 chains the whole batch flow behind one click for
   every managed repository — `git fetch`, a model-drafted message plus a commit
   for the pending changes, `git pull --rebase` to integrate the remote, then
