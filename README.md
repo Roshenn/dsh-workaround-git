@@ -104,7 +104,12 @@ Sanity checks before restarting:
 node --test                     # host half
 node scripts/smoke-panel.mjs    # panel API end to end against a temp repo
 node scripts/bench-panel.mjs    # entry-path timings on the managed workspaces here
+node scripts/bench-panel.mjs --breakdown   # same, split per workspace / repo / git command
 ```
+
+`docs/perf-baseline.md` records what the entry path costs on this machine,
+where its `git` spawns go, and the thresholds that decide the next round of
+panel-performance work.
 
 ## Panel (browser half)
 

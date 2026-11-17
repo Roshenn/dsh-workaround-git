@@ -29,7 +29,7 @@
 
 **提交前必做**：
 
-1. `npm test` 必须绿（= `node --test "test/*.test.mjs"`，58 项，约 35 秒；只改文档可跳过，但 commit 里要写明跳过原因）。
+1. `npm test` 必须绿（= `node --test "test/*.test.mjs"`，79 项，约 12 秒；只改文档可跳过，但 commit 里要写明跳过原因）。
 2. 按第 4 节升版本号、收 CHANGELOG——**每个 commit 都升，没有例外**。
 3. `git status --short` 看一眼改动清单。
 4. **只 `git add` 自己动过的文件**，不要 `git add -A` / `git add .`——
@@ -132,7 +132,7 @@ git commit -m "fix(api): 面板路由改由 ctx.inject(['webServer']) 挂载
 - apply() 阶段 get('webServer') 拿不到服务（Loader 并发挂载 entry）
 - 路由落到 SPA fallback，面板报 HTTP 404: response is not JSON
 - 版本：0.1.0 → 0.1.1（patch）
-- 验证：npm test 58 项绿；node scripts/smoke-panel.mjs 通过"
+- 验证：npm test 79 项绿；node scripts/smoke-panel.mjs 通过"
 
 git add lib/client.js README.md CHANGELOG.md package.json
 git commit -m "feat(panel): 卡片条改单行横排，超出时横向滚动
