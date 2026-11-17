@@ -15,7 +15,7 @@
 import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApiHandler } from '../lib/api.mjs';
@@ -373,6 +373,45 @@ try {
   await api('POST', '/stage', { workspaceId: 'root', repo: rootRepo, paths: ['root.txt'] });
   const selfCommit = await api('POST', '/commit', { workspaceId: 'root', repo: rootRepo, message: 'test: self repo commit' });
   check('commit works when the repo is the workspace root', selfCommit.action === 'committed', JSON.stringify(selfCommit));
+
+  // ── card-level hiding + managed-only entries ──────────────────────────────
+  const hidden = await api('POST', '/hidden-repos', { workspaceId: 'root', repo: rootRepo, hidden: true });
+  check('hide records the repository scope path', hidden.hiddenRepos.length === 1
+    && hidden.hiddenRepos[0].toLowerCase() === realpathSync(rootRepo).toLowerCase(), JSON.stringify(hidden.hiddenRepos));
+
+  state = await api('GET', '/state');
+  let visible = state.workspaces.flatMap((workspace) => workspace.repos ?? []);
+  check('a hidden card is not rendered', visible.length === 1 && visible[0].repo === 'demo', JSON.stringify(visible.map((repo) => repo.repo)));
+
+  const hiddenFetch = await api('POST', '/fetch', {});
+  check('a hidden repo is not fetched by the batch path', hiddenFetch.fetched === 1 && hiddenFetch.failed === 0, JSON.stringify(hiddenFetch));
+
+  const restoredHidden = await api('POST', '/hidden-repos', { path: hidden.hiddenRepos[0], hidden: false });
+  check('restore clears the hidden entry', restoredHidden.hiddenRepos.length === 0, JSON.stringify(restoredHidden));
+  state = await api('GET', '/state');
+  visible = state.workspaces.flatMap((workspace) => workspace.repos ?? []);
+  check('the restored card is rendered again', visible.length === 2, JSON.stringify(visible.map((repo) => repo.repo)));
+
+  const ghostPath = join(workspace, 'ghost-workspace');
+  await writeFile(join(home, 'workaround-git', 'managed.json'), JSON.stringify({
+    version: 2,
+    workspaces: [
+      { id: 'demo', path: workspace, title: 'demo', addedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'ghost', path: ghostPath, title: 'ghost', addedAt: '2026-01-01T00:00:00.000Z' },
+    ],
+    hiddenRepos: [],
+  }), 'utf8');
+  const keptGhost = await api('POST', '/managed', {
+    workspaces: [
+      { id: 'demo', path: workspace, title: 'demo' },
+      { id: 'ghost', path: ghostPath, title: 'ghost' },
+    ],
+  });
+  const keptDemo = keptGhost.managed.workspaces.find((entry) => entry.id === 'demo');
+  check('a managed workspace dsh no longer lists is kept on save', keptGhost.managed.workspaces.some((entry) => entry.id === 'ghost'), JSON.stringify(keptGhost.managed.workspaces));
+  check('an existing entry keeps its addedAt across a save', keptDemo?.addedAt === '2026-01-01T00:00:00.000Z', JSON.stringify(keptDemo));
+  const droppedGhost = await api('POST', '/managed', { workspaces: [{ id: 'demo', path: workspace }] });
+  check('omitting the managed-only entry removes it', !droppedGhost.managed.workspaces.some((entry) => entry.id === 'ghost'), JSON.stringify(droppedGhost.managed.workspaces));
 } finally {
   await new Promise((resolve) => server.close(resolve));
   await rm(home, { recursive: true, force: true });

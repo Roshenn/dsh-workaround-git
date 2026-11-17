@@ -39,6 +39,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.12.0] - 2026-11-17
+
+### Added
+
+- Card-level removal: the card menu (right-click, or the new `⋯` button in the header) now has 「从面板移除…」. After a confirmation that spells out nothing is deleted, it records the repository scope in `hiddenRepos`; 「已隐藏的仓库」 in 管理工作区 lists it and 恢复 brings the card back.
+- `POST /api/hidden-repos` hides one card (`{workspaceId, repo, hidden: true}`) or restores one (`{path, hidden: false}`), reusing the managed-workspace and repository-containment guards.
+
+### Changed
+
+- `$DSH_HOME/workaround-git/managed.json` is schema v2: `hiddenRepos` lists hidden card scopes. A v1 file reads as an empty list; an older build ignores the field and only brings the hidden cards back.
+- `POST /api/managed` merges instead of replacing. Entries already managed keep their id and `addedAt`, so a workspace dsh no longer lists can only be removed deliberately and is never dropped by a re-validation; new entries are still checked for existence and git content; an empty selection is accepted.
+- 管理工作区 lists managed workspaces dsh no longer knows with a 「不在 dsh 工作区中」 badge, lets any managed row be unchecked even when its folder is gone or its repository was removed, shows rejected entries and request errors, and adds 返回面板.
+- `/api/state`, `/api/fetch`, `/api/batch` and `/api/autosync` skip hidden cards, so the batch bar acts on exactly what the panel shows.
+
+### Fixed
+
+- A card with no matching dsh workspace — a repository under a `contains` workspace, e.g. `official-api.bak` under `support` — could not be removed at all: the picker only listed workspaces, and the card menu had no remove action. The only path was to unmanage the whole parent workspace.
+
 ## [0.11.1] - 2026-11-17
 
 ### Fixed

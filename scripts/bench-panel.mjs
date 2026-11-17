@@ -40,7 +40,7 @@ console.log(`GET /api/managed (one store read)   ${ms(performance.now() - readSt
 
 for (let run = 1; run <= runs; run += 1) {
   const start = performance.now();
-  const state = await managedWorkspacesState(managed.workspaces);
+  const state = await managedWorkspacesState(managed.workspaces, { hiddenRepos: managed.hiddenRepos });
   const elapsed = performance.now() - start;
   const repos = state.flatMap((workspace) => workspace.repos ?? []);
   const failed = repos.filter((repo) => repo.ok !== true).length;

@@ -115,6 +115,20 @@ directory of one), `contains` (repos live below it), or `none` — and asks whic
 ones to manage. The choice is stored in
 `$DSH_HOME/workaround-git/managed.json`; nothing else is persisted.
 
+A managed workspace is the unit of **management**; the cards are the
+**repositories** under it. A workspace classified `contains` expands into one
+card per repository, so a card has no workspace row of its own. Use the `⋯`
+button in the card header (or right-click the header) and choose 「从面板移除」
+to hide a single card: only `hiddenRepos` in `managed.json` changes, never a
+repository. Hidden cards stay listed under 「已隐藏的仓库」 in 管理工作区, where
+恢复 brings them back.
+
+A managed entry that dsh no longer lists — the workspace was removed from dsh,
+or its folder was deleted — stays in the picker with a 「不在 dsh 工作区中」
+badge instead of disappearing. Saving the picker merges the selection (existing
+entries keep their `addedAt`), accepts an empty list, and reports any entry it
+could not add.
+
 A workspace that is a subdirectory of a repository is a **scoped workspace**: its
 card shows only that module's branch state, changes and line counts, and commits
 from it refuse to run when something outside the module is already staged (the
@@ -151,8 +165,8 @@ Each card follows VS Code's source-control layout:
   copy relative path, stage/unstage, add to `.gitignore` (file / extension /
   directory, untracked files only), discard changes…, view diff, file history,
   stash.
-- **Card menu**: stage all, unstage all, stash all, refresh, copy repo path,
-  reveal repo.
+- **Card menu** (right-click the header, or the `⋯` button): stage all, unstage
+  all, stash all, refresh, copy repo path, reveal repo, remove from panel….
 - **Branch menu** in the card header lists local branches and switches with
   `git switch`.
 - **Per-repo pull / push**: the `↓` and `↑` buttons left of the branch chip run
@@ -239,7 +253,8 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/workspaces` | every workspace with its git state (`?refresh=1` bypasses the 60s cache) |
-| GET/POST | `/api/managed` | read / replace the managed list |
+| GET/POST | `/api/managed` | read / merge the managed list (returns `hiddenRepos`) |
+| POST | `/api/hidden-repos` | hide or restore one card: `{workspaceId, repo, hidden: true}` / `{path, hidden: false}` |
 | GET | `/api/state` | per-repo status with grouped staged / changes / conflicts |
 | POST | `/api/stage` | stage everything, or the listed `paths` |
 | POST | `/api/unstage` | unstage everything, or the listed `paths` |
@@ -366,7 +381,7 @@ Every per-repo operation resolves with a result object and never rejects: the pl
 ## Development
 
 ```bash
-node --test                                # 58 tests against real git repos in a temp workspace
+node --test                                # 79 tests against real git repos in a temp workspace
 node scripts/smoke.mjs                     # print the status table, a sync dry run, and the change digest
 
 # optional: prove the schemas compile under the real tool registry, not the test stub
