@@ -254,6 +254,12 @@ Each card follows VS Code's source-control layout:
   card (`POST /api/repo-state`) instead of re-reading every workspace; `open`,
   `terminal`, `copy` and the card's own 刷新 cannot change git state and skip the
   re-read entirely, falling back to a full `/state` only if the single read fails.
+- **Opening and clicking never wait for a full read**: the panel paints the cards
+  it painted last (a module-scope snapshot) and the first-ever open shows four
+  skeleton cards instead of a blank body, then replaces them when `/state` lands.
+  Stage / unstage / stage-all / unstage-all move the file row on the click frame
+  and reconcile with `POST /api/repo-state` a moment later; a refused request
+  restores the previous row and reads the truth before reporting the error.
 - **Diff drawer** (unified patch with line numbers) and **file history** open
   from a row click or the context menu.
 

@@ -171,6 +171,13 @@ Three conclusions:
 3. **Optimistic updates are worth it** for stage/unstage: the round trip is
    47 ms, so the 136 ms reload is the only reason a click is not instant.
 
+Two capture rules keep the numbers comparable across the next rounds:
+`mount:firstCard` is only recorded on the first paint of a *fresh* `/state`
+(cards painted from the module cache are skipped), and `action:stage:refresh`
+now measures the single-card reconcile — stage paints before the request, so
+there is no full read left to measure. A `state:dropped` span means a `/state`
+response was discarded because a card write landed while it was in flight.
+
 Reading the run: **⏱ 性能** → four interactions → **■ 结束测量** → the dialog
 shows the table and saves `$DSH_HOME/workaround-git/perf-report.json`. The four
 entry spans are recorded even while the button is idle (four timestamps per
