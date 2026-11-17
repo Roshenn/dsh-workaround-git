@@ -250,7 +250,10 @@ Each card follows VS Code's source-control layout:
   when the window regains focus or the tab becomes visible. A failed background
   poll stays quiet, a successful one clears a stale error banner, and the header
   shows `最近更新 HH:MM:SS`. A card action cannot start twice, and a poll never
-  touches text being typed into a commit box.
+  touches text being typed into a commit box. A card action refreshes only that
+  card (`POST /api/repo-state`) instead of re-reading every workspace; `open`,
+  `terminal`, `copy` and the card's own 刷新 cannot change git state and skip the
+  re-read entirely, falling back to a full `/state` only if the single read fails.
 - **Diff drawer** (unified patch with line numbers) and **file history** open
   from a row click or the context menu.
 
@@ -268,6 +271,7 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | GET/POST | `/api/managed` | read / merge the managed list (returns `hiddenRepos`) |
 | POST | `/api/hidden-repos` | hide or restore one card: `{workspaceId, repo, hidden: true}` / `{path, hidden: false}` |
 | GET | `/api/state` | per-repo status with grouped staged / changes / conflicts |
+| POST | `/api/repo-state` | one card's state (same row shape as `/api/state`), used to refresh a single card after an action |
 | POST | `/api/stage` | stage everything, or the listed `paths` |
 | POST | `/api/unstage` | unstage everything, or the listed `paths` |
 | POST | `/api/discard` | restore tracked files / delete untracked ones |

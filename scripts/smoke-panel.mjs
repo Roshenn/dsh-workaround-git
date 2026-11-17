@@ -374,6 +374,13 @@ try {
   const selfCommit = await api('POST', '/commit', { workspaceId: 'root', repo: rootRepo, message: 'test: self repo commit' });
   check('commit works when the repo is the workspace root', selfCommit.action === 'committed', JSON.stringify(selfCommit));
 
+  // ── single-card refresh ──────────────────────────────────────────────────
+  const oneCard = await api('POST', '/repo-state', repoBody);
+  check('POST /api/repo-state returns one card in the /state row shape',
+    oneCard.row?.path === repo && oneCard.row.repo === 'demo'
+    && Array.isArray(oneCard.row.groups?.changes) && Array.isArray(oneCard.row.groups?.staged),
+    JSON.stringify(oneCard).slice(0, 200));
+
   // ── card-level hiding + managed-only entries ──────────────────────────────
   const hidden = await api('POST', '/hidden-repos', { workspaceId: 'root', repo: rootRepo, hidden: true });
   check('hide records the repository scope path', hidden.hiddenRepos.length === 1
@@ -382,6 +389,10 @@ try {
   state = await api('GET', '/state');
   let visible = state.workspaces.flatMap((workspace) => workspace.repos ?? []);
   check('a hidden card is not rendered', visible.length === 1 && visible[0].repo === 'demo', JSON.stringify(visible.map((repo) => repo.repo)));
+
+  const hiddenRow = await api('POST', '/repo-state', { workspaceId: 'root', repo: rootRepo });
+  check('a hidden card reads back as null instead of leaking through',
+    hiddenRow.row === null && hiddenRow.hidden === true, JSON.stringify(hiddenRow));
 
   const hiddenFetch = await api('POST', '/fetch', {});
   check('a hidden repo is not fetched by the batch path', hiddenFetch.fetched === 1 && hiddenFetch.failed === 0, JSON.stringify(hiddenFetch));
