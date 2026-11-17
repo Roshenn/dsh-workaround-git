@@ -39,6 +39,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.12.1] - 2026-11-17
+
+### Added
+
+- `scripts/bench-panel.mjs --breakdown` splits the panel's entry cost into per-workspace discovery, one snapshot per repository and one per-command breakdown per repository, and reports how many `git` processes one `/api/state` read spawns.
+- `scripts/bench-panel.mjs --json` for before/after captures, `--http` for p50/p95 of the live panel API (`--base=` or `$DSH_WEB_URL`), and `--workspace=<id|path>` to narrow a run.
+- `gitSpawnStats()` / `resetGitSpawnStats()` in `lib/git.mjs`: measurement-only counters, so the bench can attribute an entry read to processes instead of guessing. No plugin behaviour reads them.
+
+### Changed
+
+- The default `bench-panel` output keeps its existing lines and now also reports spawn count and payload size per run.
+
 ## [0.12.0] - 2026-11-17
 
 ### Added
