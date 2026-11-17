@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.13.1] - 2026-11-17
+
+### Changed
+
+- `docs/perf-baseline.md` carries the client-side capture from the panel's own 性能 button (0.13.0, 7 cards, idle machine): first card 165 ms with 155 ms spent in `/api/state`, a stage action 183 ms with 136 ms of it a full-state reload, 3 ms to paint the strip, zero long tasks. T2 and T3 are triggered; T4/T5 are parked because the render is not the cost.
+
 ## [0.13.0] - 2026-11-17
 
 ### Added

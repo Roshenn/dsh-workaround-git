@@ -114,10 +114,13 @@ Per command (same loaded machine, so these are upper bounds):
   every repository (60 s timeout each) after the panel paints; while it is in
   flight the 刷新 button is disabled and pull / push / one-click sync await it
   before they start (`fetchPromiseRef`).
-- **F6 — client-side cost is unmeasured.** The code shows no skeleton, no
-  `React.memo`, a new object tree on every 10 s poll, and the commit message
-  living in `Page` state (every keystroke re-renders every card). The client
-  column is pending the one manual pass in §5.
+- **F6 — the client render is cheap; the wait is the host read.** With 7 cards
+  the strip paints in **3 ms** (`state:firstCard`) and the first card lands
+  165 ms after mount, of which **155 ms is `/api/state`**. Typing and a 13-line
+  diff produced **zero long tasks over 50 ms**, and the diff drawer's 60 ms was
+  59 ms of request. Memoization and virtualization are not justified at this
+  data size; the same ~150 ms read is what makes every click feel slow (74 % of
+  a stage action's 183 ms).
 
 ## 4. Thresholds
 
@@ -127,52 +130,53 @@ plus the item it unlocks; an item below its threshold stays out.
 | # | Threshold | This capture | Verdict | Item |
 | --- | --- | --- | --- | --- |
 | T1 | `/api/state` p95 ≥ 120 ms | **286 ms** | **triggered** | B1 per-workspace reads |
-| T2 | mount → first card ≥ 150 ms, or first skeleton frame ≥ 50 ms | not captured | pending | B2 skeleton + snapshot cache |
-| T3 | click → idle p95 ≥ 200 ms, or idle time ≥ 50 % spent re-reading | not captured (code path: full `/state` per action, ≈ 239 ms) | pending — mechanism proven | B3 single-repo read, B4 optimistic updates |
-| T4 | one poll with no changes still re-renders ≥ 1 card, or poll task ≥ 30 ms | not captured | pending | B5 memo + structural sharing |
-| T5 | ≥ 1 long task > 50 ms while typing 20 chars or opening a diff | not captured | pending | B6 input isolation + diff virtualization |
-| T6 | background fetch → one-click sync start ≥ 500 ms | not captured (code path: awaits the whole fetch) | pending — mechanism proven | B7 fetch coalescing, drop the global wait |
+| T2 | mount → first card ≥ 150 ms, or first skeleton frame ≥ 50 ms | **165 ms** (155 ms of it `/api/state`) | **triggered** | B2 skeleton + snapshot cache |
+| T3 | click → idle p95 ≥ 200 ms, or idle time ≥ 50 % spent re-reading | 183 ms, of which 136 ms (74 %) is the reload | **triggered (share clause)** | B3 single-repo read, B4 optimistic updates |
+| T4 | one poll with no changes still re-renders ≥ 1 card, or poll task ≥ 30 ms | render is 3 ms per full state; no long task recorded | **not triggered** (park B5 until 30+ cards) | B5 memo + structural sharing |
+| T5 | ≥ 1 long task > 50 ms while typing 20 chars or opening a diff | **0 long tasks**; diff was 13 lines (1 ms render) | **not triggered** (park B6; re-test with a 5k-line diff) | B6 input isolation + diff virtualization |
+| T6 | background fetch → one-click sync start ≥ 500 ms | not exercised in this run | **still open** | B7 fetch coalescing, drop the global wait |
 | T7 | one snapshot ≥ 100 ms, or `/api/state` spawns ≥ 5 × repos | 25–83 ms; **45 ≥ 35** | **spawn clause triggered** | F3 claim-before-snapshot (candidate); numstat cap stays optional |
 
-## 5. Client baseline (one button, two clicks)
+## 5. Client baseline
 
-The panel measures itself — no console, no `localStorage`, no reload.
+Captured **2026-11-17 22:09**, **0.13.0**, 7 cards, from the panel's own 性能
+button (`perf-report.json`, `pluginVersion` stamped). The machine was idle this
+time, so these numbers are trustworthy rather than upper bounds.
 
-1. Open 工作区 Git and click **⏱ 性能** in the header (left of 管理工作区).
-2. A banner lists four interactions; do each once: 刷新 → a file's `＋` (stage)
-   → type 20 characters into a commit box → click a file name to open its diff,
-   then scroll to the bottom.
-3. Click **■ 结束测量**. The panel posts the run to `POST /api/perf`, which
-   writes `$DSH_HOME/workaround-git/perf-report.json`, and shows the table.
+| span | n | p50 | p95 | max |
+| --- | --- | --- | --- | --- |
+| `state:reload` | 8 | 150 | 210 | 210 |
+| `action:stage:idle` | 1 | 183 | 183 | 183 |
+| `mount:firstCard` | 1 | 165 | 165 | 165 |
+| `entry:state` | 1 | 155 | 155 | 155 |
+| `action:stage:refresh` | 1 | 136 | 136 | 136 |
+| `diff:render` | 1 | 60 | 60 | 60 |
+| `diff:fetch` | 1 | 59 | 59 | 59 |
+| `action:stage:response` | 1 | 47 | 47 | 47 |
+| `entry:managed` | 1 | 5 | 5 | 5 |
+| `state:firstCard` | 1 | 3 | 3 | 3 |
 
-That is the whole procedure: start, four interactions, stop. The saved file is
-the capture; it survives a reload and can be read by anyone with the repo.
+The sequence in `recent` tells the story in order: mount → `/managed` 5 ms →
+`/state` 155 ms → first card 165 ms; then the panel re-read **everything** four
+more times without being asked (two `after-fetch` reloads at 210 ms and 148 ms,
+a poll at 151 ms), a stage click took 47 ms + 136 ms reload = **183 ms of
+spinner**, and the diff drawer spent 59 ms of its 60 ms waiting for the patch.
 
-Why the four interactions: they are the four paths the thresholds care about —
-entry (`mount:firstCard`), a card action (`action:stage:*`), typing (long tasks
-while the commit box is edited) and the diff drawer (`diff:render`). The poll
-(`state:reload` with `reason: poll`) is recorded on its own every 10 s.
+Three conclusions:
 
-Recorded spans (milliseconds; p50/p95/max per name):
+1. **The client is fast.** Painting seven cards costs 3 ms; no long task was
+   recorded while typing or opening the drawer.
+2. **One request is the whole cost.** 155 of 165 ms at entry, 136 of 183 ms per
+   action, and ~150 ms on every 10 s poll — the same `/api/state`.
+3. **Optimistic updates are worth it** for stage/unstage: the round trip is
+   47 ms, so the 136 ms reload is the only reason a click is not instant.
 
-| Span | Meaning |
-| --- | --- |
-| `entry:managed` | `/managed` round trip |
-| `entry:state` | `/state` round trip |
-| `mount:firstCard` | panel mount → first card painted |
-| `state:firstCard` | `/state` returned → first card painted (the render cost) |
-| `action:<name>:response` | click → action request returned |
-| `action:<name>:refresh` | the full `/state` reload after the action |
-| `action:<name>:idle` | click → spinner cleared (what the user waits) |
-| `state:reload` / `state:skip` | background poll, focus refresh, batch reload; `detail.reason` says which |
-| `diff:fetch` / `diff:render` | request → text → drawer painted |
-| `longTasks` | count / max / last 20 over 50 ms |
-
-The four `entry:`/`firstCard` spans are recorded even while the button is idle
-(four timestamps per mount), which is what lets a run started minutes after the
-panel opened still report the first paint. Everything else only records between
-开始 and 结束. `localStorage['wg-perf']='1'` remains a console escape hatch that
-starts the recorder at load; the button path never needs it.
+Reading the run: **⏱ 性能** → four interactions → **■ 结束测量** → the dialog
+shows the table and saves `$DSH_HOME/workaround-git/perf-report.json`. The four
+entry spans are recorded even while the button is idle (four timestamps per
+mount), so a run started minutes after the panel opened still reports first
+paint; everything else only records between start and stop.
+`localStorage['wg-perf']='1'` remains a console escape hatch.
 
 ## 6. After
 
@@ -180,12 +184,13 @@ Filled in by the next round, same commands, same machine, load reported.
 
 | Metric | Before | After |
 | --- | --- | --- |
-| `/api/state` p95 (live) | 286 ms | — |
+| `/api/state` p95 (live, loaded machine) | 286 ms | — |
 | `/api/state` git spawns | 45 | — |
-| `mount:firstCard` p95 | pending | — |
-| `action:*:idle` p95 | pending | — |
-| long tasks while typing | pending | — |
-| long tasks opening a diff | pending | — |
+| `mount:firstCard` | 165 ms | — |
+| `action:stage:idle` | 183 ms | — |
+| `action:stage:refresh` | 136 ms | — |
+| `state:firstCard` (render) | 3 ms | — |
+| long tasks while typing / opening a diff | 0 | — |
 
 ## Candidates (measured, not approved)
 
