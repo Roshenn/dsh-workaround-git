@@ -392,6 +392,19 @@ try {
   visible = state.workspaces.flatMap((workspace) => workspace.repos ?? []);
   check('the restored card is rendered again', visible.length === 2, JSON.stringify(visible.map((repo) => repo.repo)));
 
+  // ── diagnostics sink ─────────────────────────────────────────────────────
+  const perf = await api('POST', '/perf', {
+    enabled: true,
+    spans: { 'entry:state': { count: 1, p50: 12, p95: 12, max: 12 } },
+    longTasks: { count: 0, max: 0, last: [] },
+  });
+  check('POST /api/perf saves a report next to managed.json',
+    existsSync(perf.path) && perf.path.endsWith('perf-report.json'), JSON.stringify(perf));
+  const savedReport = JSON.parse(await readFile(perf.path, 'utf8'));
+  check('the saved report keeps the spans and a savedAt stamp',
+    savedReport.spans['entry:state'].p95 === 12 && typeof savedReport.savedAt === 'string',
+    JSON.stringify(savedReport).slice(0, 160));
+
   const ghostPath = join(workspace, 'ghost-workspace');
   await writeFile(join(home, 'workaround-git', 'managed.json'), JSON.stringify({
     version: 2,

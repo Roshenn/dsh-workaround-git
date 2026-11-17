@@ -238,6 +238,13 @@ Each card follows VS Code's source-control layout:
   context menu leads with 用 Ours 解决 / 用 Theirs 解决 — the tooltip notes that
   git inverts them during a rebase — and 标记为已解决; once a merge is fully
   resolved the commit button becomes `✓ 完成合并并提交` and concludes it explicitly.
+- **性能 measurement**: the header's 性能 button starts a recording run and
+  shows a four-step script in a banner (刷新 → stage a file → type in a commit box →
+  open a diff); 结束测量 posts p50/p95 per span — entry path, first card, every
+  card action, the poll and the diff drawer — plus long tasks to `/api/perf`, which
+  saves `perf-report.json` next to `managed.json` and shows the table in a dialog.
+  Nothing is recorded while the button is idle except four entry timestamps per
+  mount; `docs/perf-baseline.md` explains what the numbers mean.
 - **Live refresh**: the panel re-reads `/state` every 10 seconds while it is
   visible and the batch bar is idle, and immediately (throttled to once per 2 s)
   when the window regains focus or the tab becomes visible. A failed background
@@ -267,6 +274,7 @@ The browser half talks to one prefix route, `/workaround-git/api`:
 | POST | `/api/ignore` | append a rule to the repo's `.gitignore` |
 | POST | `/api/fetch` | fetch every managed repo (or one) and report per-repo failures |
 | POST | `/api/batch` | pull / push / suggest / stage-and-commit across every managed repo |
+| POST | `/api/perf` | save one panel measurement as `$DSH_HOME/workaround-git/perf-report.json` (diagnostics; never touches a repository) |
 | POST | `/api/autosync` | start one-click sync; returns `{ jobId, total, reusedFetch }` immediately |
 | GET | `/api/autosync/<id>` | per-repo, per-stage progress for that job (poll it) |
 | POST | `/api/open` | open a file, or reveal it in the file manager |

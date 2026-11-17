@@ -39,6 +39,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.13.0] - 2026-11-17
+
+### Added
+
+- The panel measures itself: a **性能** button in the header starts a recording run, a banner lists the four interactions to perform, and **结束测量** stops it, shows a p50/p95 table per span plus long tasks, and saves it. No console, no `localStorage`, no reload.
+- `POST /api/perf` writes one report to `$DSH_HOME/workaround-git/perf-report.json` (atomic write, bounded by the existing 1 MiB body limit, stamped with `pluginVersion` and `savedAt`). Diagnostics only: never inside a repository, never read at runtime.
+
+### Changed
+
+- `wg-perf` is a runtime switch now. The entry spans (`entry:managed`, `entry:state`, `mount:firstCard`, `state:firstCard`) are always recorded — four timestamps per mount — so a run started minutes after the panel opened still reports the first paint; everything else records only between start and stop. `localStorage['wg-perf']='1'` remains as a console escape hatch.
+- `docs/perf-baseline.md` §5 describes the two-click flow instead of a console procedure; README lists the new route and the button.
+
 ## [0.12.4] - 2026-11-17
 
 ### Changed

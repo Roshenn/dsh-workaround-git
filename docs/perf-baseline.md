@@ -134,24 +134,26 @@ plus the item it unlocks; an item below its threshold stays out.
 | T6 | background fetch → one-click sync start ≥ 500 ms | not captured (code path: awaits the whole fetch) | pending — mechanism proven | B7 fetch coalescing, drop the global wait |
 | T7 | one snapshot ≥ 100 ms, or `/api/state` spawns ≥ 5 × repos | 25–83 ms; **45 ≥ 35** | **spawn clause triggered** | F3 claim-before-snapshot (candidate); numstat cap stays optional |
 
-## 5. Client baseline (pending one manual pass)
+## 5. Client baseline (one button, two clicks)
 
-The panel runs behind the desktop app's authenticated page, so this half needs
-one pass in the open GUI (about 30 seconds):
+The panel measures itself — no console, no `localStorage`, no reload.
 
-1. In the panel's DevTools console: `localStorage.setItem('wg-perf','1')`, then reload.
-2. Open 工作区 Git and wait for the first card.
-3. Click 刷新 once; click one file's `＋` (stage) once.
-4. Type 20 characters into a card's commit box.
-5. Open the diff of the file with the most changes, scroll to the bottom.
-6. `copy(__wgPerfReport())` and paste the result into a capture file
-   (`/tmp/wg-client-before.json`).
+1. Open 工作区 Git and click **⏱ 性能** in the header (left of 管理工作区).
+2. A banner lists four interactions; do each once: 刷新 → a file's `＋` (stage)
+   → type 20 characters into a commit box → click a file name to open its diff,
+   then scroll to the bottom.
+3. Click **■ 结束测量**. The panel posts the run to `POST /api/perf`, which
+   writes `$DSH_HOME/workaround-git/perf-report.json`, and shows the table.
 
-Turn it off with `localStorage.removeItem('wg-perf')` and a reload. With the
-flag off nothing is recorded and `__wgPerfReport()` answers
-`{ enabled: false, hint }`.
+That is the whole procedure: start, four interactions, stop. The saved file is
+the capture; it survives a reload and can be read by anyone with the repo.
 
-Recorded span names (all milliseconds, p50/p95/max per name):
+Why the four interactions: they are the four paths the thresholds care about —
+entry (`mount:firstCard`), a card action (`action:stage:*`), typing (long tasks
+while the commit box is edited) and the diff drawer (`diff:render`). The poll
+(`state:reload` with `reason: poll`) is recorded on its own every 10 s.
+
+Recorded spans (milliseconds; p50/p95/max per name):
 
 | Span | Meaning |
 | --- | --- |
@@ -162,9 +164,15 @@ Recorded span names (all milliseconds, p50/p95/max per name):
 | `action:<name>:response` | click → action request returned |
 | `action:<name>:refresh` | the full `/state` reload after the action |
 | `action:<name>:idle` | click → spinner cleared (what the user waits) |
-| `state:reload` / `state:skip` | background poll or focus refresh; `detail.reason` says which |
+| `state:reload` / `state:skip` | background poll, focus refresh, batch reload; `detail.reason` says which |
 | `diff:fetch` / `diff:render` | request → text → drawer painted |
 | `longTasks` | count / max / last 20 over 50 ms |
+
+The four `entry:`/`firstCard` spans are recorded even while the button is idle
+(four timestamps per mount), which is what lets a run started minutes after the
+panel opened still report the first paint. Everything else only records between
+开始 and 结束. `localStorage['wg-perf']='1'` remains a console escape hatch that
+starts the recorder at load; the button path never needs it.
 
 ## 6. After
 
