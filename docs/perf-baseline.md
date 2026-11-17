@@ -48,6 +48,10 @@ The payload is about 6.6 kB. **Payload is not the cost — 45 `git` processes fo
 cards is.** `/api/managed` is three orders of magnitude cheaper, which is why it
 can drive the first paint.
 
+Payload tracks how many files are dirty, not how many cards exist: the same read
+right after committing this repository is 6.1 kB. Compare payload sizes only
+between captures with the same working tree.
+
 ## 2. Where the cost goes
 
 Discovery, per workspace (parallel, depth 2):
