@@ -261,7 +261,11 @@ Discard is the only destructive action: it asks for confirmation, restores
 tracked files with `git restore --worktree`, and deletes untracked files — the
 untracked deletion cannot be undone. The model route comes from the session
 default (`agentDefaultModel`) or the first advertised provider; no API key ever
-reaches the plugin.
+reaches the plugin. Drafts run at the cheapest reasoning effort the model
+advertises (`off`) rather than the session's effort (typically `max`): a commit
+subject is short and format-constrained, so thinking tokens only add latency. A
+model that does not advertise `off` keeps the inherited effort — dsh rejects an
+explicit unsupported effort instead of clamping it.
 
 The browser half talks to one prefix route, `/workaround-git/api`:
 
