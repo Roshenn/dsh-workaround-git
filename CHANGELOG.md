@@ -39,6 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Open / "reveal in file manager" spawned with `windowsHide: true`, which also hid the Explorer window the user was supposed to see — the process started and exited normally, so the panel reported success while nothing appeared. Windows reveal now launches `explorer.exe /select,<path>` visibly, and opening a file uses `rundll32 url.dll,FileProtocolHandler` (no console flash).
 - The per-card terminal button reported success while no terminal appeared: `spawn(powershell.exe, …, { detached: true })` sets `DETACHED_PROCESS` on Windows, so the shell ran without a console window. It now tries `wt.exe -d <repo>` first, then a hidden PowerShell launcher that opens `powershell -NoExit` through `Start-Process`; a launcher that exits non-zero falls through to the next candidate. `wt.exe` is also no longer detected with `existsSync` — the WindowsApps app-execution alias is not a normal file.
 
+## [0.18.2] - 2026-11-19
+
+### Fixed
+
+- Drafts failed with `model produced no message (finish: [object Object])` on the configured enrigin route: the model advertises `off`, but the endpoint rejects the wire value it maps to, so the call ended with an empty error finish and the error text lost the failure detail. Drafts now run at `low` (advertised and accepted), retry once at the inherited effort when the cheap effort ends empty before any text, remember the winning effort per route, and name the provider's failure code/message when every attempt stays empty.
+
 ## [0.18.1] - 2026-11-19
 
 ### Changed

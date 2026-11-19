@@ -1,9 +1,11 @@
 /**
  * Draft reasoning effort: a commit message is a short, format-constrained
- * output, so the AI draft runs at `off` even when the session model sits at
+ * output, so the AI draft runs at `low` even when the session model sits at
  * `max`. The effort is capability-checked first, because dsh rejects an
- * explicit unsupported effort before provider I/O instead of clamping it: a
- * model without `off` keeps the inherited effort rather than failing.
+ * explicit unsupported effort before provider I/O instead of clamping it, and
+ * a provider can still reject an advertised effort at its endpoint (the
+ * enrigin route does that for `off`). In that case the draft retries once at
+ * the inherited effort instead of failing.
  *
  * Every case runs against a throwaway repo with one uncommitted change; the
  * model is a fake `llm` service, so no provider is called.
@@ -35,10 +37,13 @@ function makeRepo() {
 
 /**
  * A ctx whose llm records the options it was called with. `model` is unique per
- * case so the module-level capability cache does not leak between tests.
+ * case so the module-level effort cache does not leak between tests.
+ * `outcomes` drives successive calls: 'text' streams a message, 'error' ends
+ * with an error finish carrying no text.
  */
-function fakeCtx({ model, selection = { provider: 'fake', model, reasoningEffort: 'max' }, efforts, metadata = 'ok' } = {}) {
+function fakeCtx({ model, selection = { provider: 'fake', model, reasoningEffort: 'max' }, efforts, metadata = 'ok', outcomes = ['text'] } = {}) {
   const calls = [];
+  let call = 0;
   return {
     calls,
     get(name) {
@@ -51,6 +56,18 @@ function fakeCtx({ model, selection = { provider: 'fake', model, reasoningEffort
           },
           stream: async function* stream(options) {
             calls.push(options);
+            const outcome = outcomes[Math.min(call, outcomes.length - 1)];
+            call += 1;
+            if (outcome === 'error') {
+              yield {
+                type: 'finish',
+                reason: {
+                  kind: 'error',
+                  failure: { code: 'INVALID_REQUEST', message: 'reasoning effort not supported', status: 400 },
+                },
+              };
+              return;
+            }
             yield { type: 'text-delta', text: 'fix: change note' };
             yield { type: 'finish', reason: 'stop' };
           },
@@ -62,16 +79,16 @@ function fakeCtx({ model, selection = { provider: 'fake', model, reasoningEffort
   };
 }
 
-test('drafts run at off even when the session default is max', async () => {
-  const ctx = fakeCtx({ model: 'off-model', efforts: ['off', 'low', 'high', 'max'] });
+test('drafts run at low even when the session default is max', async () => {
+  const ctx = fakeCtx({ model: 'low-model', efforts: ['low', 'high', 'max'] });
   const result = await suggestMessage(ctx, makeRepo(), {});
   assert.equal(result.ok, true);
   assert.equal(ctx.calls.length, 1);
-  assert.equal(ctx.calls[0].reasoningEffort, 'off');
+  assert.equal(ctx.calls[0].reasoningEffort, 'low');
 });
 
-test('a model that does not advertise off keeps the inherited effort', async () => {
-  const ctx = fakeCtx({ model: 'no-off-model', efforts: ['low', 'high', 'max'] });
+test('a model that does not advertise low keeps the inherited effort', async () => {
+  const ctx = fakeCtx({ model: 'no-low-model', efforts: ['high', 'max'] });
   const result = await suggestMessage(ctx, makeRepo(), {});
   assert.equal(result.ok, true);
   assert.equal(ctx.calls[0].reasoningEffort, 'max');
@@ -91,13 +108,36 @@ test('an unreachable capability probe keeps the inherited effort and still draft
   assert.equal(ctx.calls[0].reasoningEffort, 'max');
 });
 
-test('a selection without an effort still drafts at off', async () => {
+test('a selection without an effort still drafts at low', async () => {
   const ctx = fakeCtx({
     model: 'fallback-model',
     selection: { provider: 'fake', model: 'fallback-model' },
-    efforts: ['off'],
+    efforts: ['low'],
   });
   const result = await suggestMessage(ctx, makeRepo(), {});
   assert.equal(result.ok, true);
-  assert.equal(ctx.calls[0].reasoningEffort, 'off');
+  assert.equal(ctx.calls[0].reasoningEffort, 'low');
+});
+
+test('a rejected cheap effort retries once at the inherited effort, then remembers it', async () => {
+  const ctx = fakeCtx({ model: 'retry-model', efforts: ['low', 'high', 'max'], outcomes: ['error', 'text'] });
+  const repo = makeRepo();
+  const first = await suggestMessage(ctx, repo, {});
+  assert.equal(first.ok, true);
+  assert.deepEqual(ctx.calls.map((call) => call.reasoningEffort), ['low', 'max']);
+
+  // The winning effort is cached: the next draft skips the rejected one.
+  const second = await suggestMessage(ctx, repo, {});
+  assert.equal(second.ok, true);
+  assert.deepEqual(ctx.calls.map((call) => call.reasoningEffort), ['low', 'max', 'max']);
+});
+
+test('a draft that fails at every effort names the provider failure', async () => {
+  const ctx = fakeCtx({ model: 'both-fail-model', efforts: ['low', 'max'], outcomes: ['error'] });
+  const result = await suggestMessage(ctx, makeRepo(), {});
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'llm-output');
+  assert.match(result.error.message, /INVALID_REQUEST/);
+  assert.match(result.error.message, /reasoning effort not supported/);
+  assert.doesNotMatch(result.error.message, /\[object Object\]/);
 });
