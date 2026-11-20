@@ -19,13 +19,9 @@ This plugin gives the model eight verbs that operate on the whole workspace at o
 
 ## Screenshots
 
-The sidebar panel: one card per repository, with a per-repo commit box, the staged / changes lists, and the batch actions on top.
+The panel: one card per repository, with a per-repo commit box, the staged / changes lists, and the batch drafts, one-click sync and workspace management on the toolbar.
 
-![Workspace Git panel preview: one card per repository, per-repo commit boxes, staged and working-tree changes, batch add-and-commit](https://raw.githubusercontent.com/Roshenn/dsh-workaround-git/main/docs/screenshots/panel.png)
-
-The status table `git_workspace_status` returns — one row per repo, branch, working tree, ahead/behind, last commit:
-
-![git_workspace_status table preview: repo, branch, working tree, ahead/behind and last commit for every repository in the workspace](https://raw.githubusercontent.com/Roshenn/dsh-workaround-git/main/docs/screenshots/status-table.png)
+![Workspace Git panel: four repository cards, each with a commit box, staged and working-tree file lists with line counts, ahead/behind counters, plus the batch draft and one-click sync toolbar](https://raw.githubusercontent.com/Roshenn/dsh-workaround-git/main/docs/screenshots/panel.png)
 
 ## Features
 
